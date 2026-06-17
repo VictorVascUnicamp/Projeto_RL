@@ -14,6 +14,7 @@ import multiprocessing
 from typing import Any, Dict, List, cast, Optional
 from collections import defaultdict
 import shutil
+import traceback
 
 # Joblib: Biblioteca para computação paralela
 from joblib import Parallel, delayed
@@ -21,11 +22,6 @@ from joblib import Parallel, delayed
 # Imports dos módulos do projeto
 from envs.factory import make_env
 import utils
-from models.base import BaseAgent
-from models.AHAH.controller import AHAHController
-from models.Classical.dqn import DQNAgent
-from models.random import RandomAgent
-from models.Classical.ppo import PPOAgent
 from evaluate import evaluate 
 
 # --- Configuração de Hardware ---
@@ -63,6 +59,8 @@ def train_session(
         env = make_env(config)
     except Exception as e:
         print(f"[ERRO Sessão {session_id}] Falha ao criar env: {e}", flush=True)
+        traceback.print_exc()
+        print("-" * 60)
         return {"status": "failed", "error": "Falha ao criar env: {e}"}
 
     # Leitura de configurações

@@ -2,6 +2,7 @@
 import os
 import json
 import glob
+import traceback
 from typing import List, Dict, Any
 
 # --- ÁREA DE CONFIGURAÇÃO DO USUÁRIO ---
@@ -69,8 +70,10 @@ def load_run_data(folder_path: str) -> Dict[str, Any]:
             with open(cfg_path, "r") as f:
                 raw_cfg = json.load(f)
                 data.update(flatten_dict(raw_cfg))
-        except:
-            pass
+        except Exception as e:
+            print(f"[ERRO FATAL] {e}")
+            traceback.print_exc() 
+            print("-" * 60)
 
     # Lê Stats de Treino
     stats_path = os.path.join(folder_path, "train_stats.json")
@@ -79,8 +82,10 @@ def load_run_data(folder_path: str) -> Dict[str, Any]:
             with open(stats_path, "r") as f:
                 raw_stats = json.load(f)
                 data.update(flatten_dict(raw_stats))
-        except:
-            pass
+        except Exception as e:
+            print(f"[ERRO FATAL] {e}")
+            traceback.print_exc()  
+            print("-" * 60)
             
     return data
 

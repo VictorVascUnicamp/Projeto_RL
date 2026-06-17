@@ -20,12 +20,10 @@ import glob
 import shutil
 import math
 import argparse
+import traceback
 
 from envs.factory import make_env
 from models.base import BaseAgent
-from models.AHAH.controller import AHAHController
-from models.Classical.dqn import DQNAgent
-from models.Classical.ppo import PPOAgent 
 import utils
 
 # --- Configurações Globais ---
@@ -126,6 +124,8 @@ def run_single_seed(config: Dict[str, Any], episodes_to_run: int, seed: int) -> 
         env = make_env(config)
     except Exception as e:
         print(f"[ERRO FATAL] {e}")
+        traceback.print_exc() 
+        print("-" * 60)
         return -float("inf"), 0.0, {}
 
     agent_type = config["agent"]["type"]
@@ -309,6 +309,8 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
             
     except Exception as e:
         print(f"[TRIAL {trial_id} FAIL] {e}")
+        traceback.print_exc() 
+        print("-" * 60)
 
     return resultado
 
@@ -387,6 +389,8 @@ def main():
                             ]
             except Exception as e:
                 print(f"[AVISO] Falha ao injetar dependência: {e}")
+                traceback.print_exc()  
+                print("-" * 60)
         else:
             print(f"[AVISO] Delta para '{target_dependency}' não encontrado. Usando padrões do config.json.")
     

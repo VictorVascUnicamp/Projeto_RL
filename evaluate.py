@@ -14,14 +14,11 @@ import multiprocessing
 from gymnasium.wrappers import RecordVideo
 from typing import Any, Dict
 from joblib import Parallel, delayed
+import traceback
 
 # Imports do Projeto
 from envs.factory import make_env
 from models.base import BaseAgent
-from models.AHAH.controller import AHAHController
-from models.Classical.dqn import DQNAgent
-from models.Classical.ppo import PPOAgent
-from models.random import RandomAgent
 from utils import load_config, clean_for_json, create_agent
 
 # Configuração de Hardware
@@ -144,6 +141,8 @@ def run_eval_session(config: Dict, agent_type: str, model_path: str, res_path: s
         
     except Exception as e:
         print(f"[EVAL ERROR Worker] {e}", flush=True)
+        traceback.print_exc()  
+        print("-" * 60)
         return {}
 
 def evaluate(result_dir: str):

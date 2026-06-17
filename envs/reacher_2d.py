@@ -32,7 +32,7 @@ class Reacher2DEnv(gym.Env):
             max_angle: float = np.pi,
             max_steps: int = 200,
             learning_mode: str = "episodic",
-            continuous_target_count: int = 100,
+            target_count: int = 100,
             obs_mode: str = "geometric"):
         
         super().__init__()
@@ -54,7 +54,7 @@ class Reacher2DEnv(gym.Env):
         
         # Configuração de Aprendizado
         self.learning_mode = learning_mode
-        self.success_threshold = int(continuous_target_count) # Meta para o modo contínuo
+        self.success_threshold = int(target_count) # Meta para o modo contínuo
         self.targets_hit_session = 0 # Contador de sucessos
         
         self.obs_mode = obs_mode # 'geometric' ou 'physical'

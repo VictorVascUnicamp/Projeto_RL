@@ -288,6 +288,14 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
             processed["LSM"] = defs["agents"]["LSM"].copy()
             res_conf = processed["LSM"]
 
+            # Se o agente for LSM, ele instanciará um modelo secundário. 
+            # Esse modelo precisa das configurações dele na raiz (processed).
+            if sel_ag == "LSM":
+                readout_ag = res_conf.get("standard_model", "PPO")
+                if readout_ag not in defs["agents"]:
+                    raise KeyError(f"[ERRO FATAL] Modelo de readout '{readout_ag}' não encontrado em definitions -> agents.")
+                processed[readout_ag] = defs["agents"][readout_ag].copy()
+
     # --- GERAÇÃO DE SPECS ---
     templates = target_env_def.get("spec_templates")
 
@@ -303,7 +311,7 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         # Identifica o consumidor dos dados do reservatório
         actual_consumer = sel_ag
         if actual_consumer == "LSM":
-            actual_consumer = res_conf.get("standard_model", "PPO")
+            actual_consumer = res_conf["standard_model"]
             
         # O modleo AHAH sofre quantização de 1-bit para pular o SAOL e agilizar o treino.
         # Os modelos clássicos recebem alta resolução para manter o sinal analógico.
@@ -433,12 +441,12 @@ def validate_config_rules(config: Dict[str, Any]):
     Lança erro ou avisa dependendo da gravidade.
     """
     # 1. Extração Segura dos Metadados
-    train_conf = config.get("training", {})
-    env_conf = config.get("environment", {})
+    train_conf = config["training"]
+    env_conf = config["environment"]
     
-    agent_meta = config.get("agent", {})
+    agent_meta = config["agent"]
     agent_type = agent_meta["type"]
-    env_name = env_conf.get("name", "Unknown")
+    env_name = env_conf["name"]
     
     use_res = env_conf.get("use_reservoir", False) or agent_type == "LSM"
     freeze = train_conf.get("freeze", True)

@@ -68,16 +68,6 @@ def main():
     delta_agent = delta.get("selection", {}).get("agent", "Unknown")
     delta_env = delta.get("selection", {}).get("environment", "Unknown")
     print(f"Target: Agente {delta_agent} em {delta_env}")
-    
-    # --- SISTEMA DE DEBUG VISUAL (Rastreador de Memória) ---
-    # param_teste = "alpha" if delta_agent == "AHAH" else "learning_rate"
-    # valor_antigo = "Nao_Encontrado"
-    
-    # try:
-    #     if "definitions" in config and delta_agent in config["definitions"].get("agents", {}):
-    #         valor_antigo = config["definitions"]["agents"][delta_agent].get(param_teste)
-    #         print(f"[DEBUG] {param_teste} ANTES do Deep Merge : {valor_antigo}")
-    # except Exception: pass
 
     # 4. Updates (Deep Merge)
     config["selection"] = recursive_update(config.get("selection", {}), delta.get("selection", {}))
@@ -87,16 +77,6 @@ def main():
 
     if "definitions" in delta:
         config["definitions"] = recursive_update(config.get("definitions", {}), delta["definitions"])
-        
-
-    # --- VERIFICAÇÃO DO DEBUG APÓS O DEEP MERGE ---
-    # try:
-    #     if "definitions" in config and delta_agent in config["definitions"].get("agents", {}):
-    #         valor_novo = config["definitions"]["agents"][delta_agent].get(param_teste)
-    #         print(f"[DEBUG] {param_teste} DEPOIS do Deep Merge: {valor_novo}")
-    #         if valor_antigo == valor_novo:
-    #             print("[ALERTA] Os parâmetros não mudaram!")
-    # except Exception: pass
 
     # 5. Salva
     with open(config_path, "w", encoding="utf-8") as f:

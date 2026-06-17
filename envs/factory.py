@@ -21,7 +21,7 @@ def make_env(config: Dict[str, Any], reservoir_load_path: Optional[str] = None) 
     train_conf = config["training"]
     
     name = env_conf["name"]
-    target_count = int(env_conf["continuous_target_count"])
+    target_count = int(train_conf["target_count"])
     learning_mode = train_conf["learning_mode"]
     episodic_max_steps = int(env_conf["max_steps"])
     episodes = int(train_conf["episodes"])
@@ -51,7 +51,7 @@ def make_env(config: Dict[str, Any], reservoir_load_path: Optional[str] = None) 
             max_steps=max_steps,
             render_mode="rgb_array",
             learning_mode=learning_mode,
-            continuous_target_count=target_count,
+            target_count=target_count,
             obs_mode=obs_mode
         )
         
@@ -62,7 +62,6 @@ def make_env(config: Dict[str, Any], reservoir_load_path: Optional[str] = None) 
         env = gym.make("CartPole-v1", render_mode="rgb_array", max_episode_steps=max_steps)
         
         if learning_mode == "continuous":
-            target_count = int(env_conf.get("target_count", 100))
             env = ContinuousCartPoleWrapper(env, success_threshold=target_count, max_steps_episodic=episodic_max_steps)
         else:
             env = CartPoleWrapper(env)
