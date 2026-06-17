@@ -1,0 +1,214 @@
+# envs/wrappers.py
+import gymnasium as gym
+import gymnasium.spaces as spaces
+import numpy as np
+
+class CartPoleWrapper(gym.Wrapper):
+    """
+    Wrapper para CartPole-v1.
+    Isola a injeção de Métricas (Score e Sucesso) do Reward Shaping.
+    """
+    def __init__(self, env, use_shaping=True):
+        super().__init__(env)
+        self.use_shaping = use_shaping
+        self.safe_zone = 0.10  # radianos (~5.7 graus)
+        self.fail_theta = 12.0 * (np.pi / 180.0) # ~0.209 rad (O limite nativo do Gym)
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return obs, info
+
+    def step(self, action):
+        obs, raw_reward, terminated, truncated, info = self.env.step(action)
+        _, _, theta, _ = obs
+        theta_abs = abs(theta)
+        
+        # 1. Guarda reward original para métricas humanas 
+        info["raw_reward"] = float(raw_reward)
+        
+        # 2. Sucesso apenas ao terminar o tempo máximo (vitória do episódio)
+        info["is_success"] = 1 if truncated else 0
+
+        # 3. REWARD SHAPING
+        if self.use_shaping:
+            if terminated and not truncated:
+                reward = -1.0 
+            else:
+                # Tuning Score Contínuo: 1.0 no centro, caindo até 0.0 na beira da morte
+                score_continuo = max(0.0, 1.0 - (theta_abs / self.fail_theta))
+                info["step_score"] = score_continuo
+                reward = score_continuo 
+        else:
+            reward = float(raw_reward)
+            info["step_score"] = reward
+            
+        return obs, reward, terminated, truncated, info
+    
+class ContinuousCartPoleWrapper(gym.Wrapper):
+    """
+    Wrapper para CartPole-v1 no Modo Contínuo.
+    Inclui barreiras inelásticas e exige 'N' passos consecutivos na zona segura para vencer.
+    """
+    def __init__(self, env, use_shaping=True, success_threshold=100,max_steps_episodic=500):
+        super().__init__(env)
+        self.use_shaping = use_shaping
+        self.success_threshold = success_threshold
+        self.max_steps_episodic = max_steps_episodic
+        self.total_successes = 0
+        self.fail_theta = 12.0 * (np.pi / 180.0) # ~0.209 rad (O limite nativo do Gym)
+        
+        self.max_x = 2.4 # 4.0 é o limite do ambiente, 2.4 é o limite do vídeo.
+        self.max_theta = 30.0 * (np.pi / 180.0) # ~0.523 rad
+
+    def reset(self, **kwargs):
+        self.consecutive_steps = 0
+        self.total_successes = 0
+        # Evita que o Gym reclame no próximo passo, caso tenha terminado em estado de erro
+        if hasattr(self.env.unwrapped, "steps_beyond_terminated"):
+            self.env.unwrapped.steps_beyond_terminated = None # type: ignore
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        # 1. Silencia a reclamação do Gymnasium (Apaga a memória de que ele "morreu" antes)
+        if hasattr(self.env.unwrapped, "steps_beyond_terminated"):
+            self.env.unwrapped.steps_beyond_terminated = None # type: ignore
+
+        # 2. Executa a ação
+        obs, raw_reward, terminated, truncated, info = self.env.step(action)
+        x, x_dot, theta, theta_dot = self.env.unwrapped.state # type: ignore
+        
+        hit_wall = False
+        
+        # Colisão Inelástica
+        if x > self.max_x:
+            x = self.max_x; x_dot = 0.0; hit_wall = True
+        elif x < -self.max_x:
+            x = -self.max_x; x_dot = 0.0; hit_wall = True
+        
+        if theta > self.max_theta:
+            theta = self.max_theta; theta_dot = 0.0; hit_wall = True
+        elif theta < -self.max_theta:
+            theta = -self.max_theta; theta_dot = 0.0; hit_wall = True
+            
+        if hit_wall:
+            self.env.unwrapped.state = (x, x_dot, theta, theta_dot) # type: ignore
+            obs = np.array(self.env.unwrapped.state, dtype=np.float32) # type: ignore
+
+        terminated = False
+        theta_abs = abs(theta)
+            
+         # Lógica de Passos Consecutivos (Sem colisão e dentro do limite fail_theta)
+        if not hit_wall and theta_abs < self.fail_theta:
+            self.consecutive_steps += 1
+        else:
+            self.consecutive_steps = 0
+
+        # 1 sucesso a cada 500 passos seguidos sem cair/bater
+        is_success_step = 0
+        if self.consecutive_steps > 0 and self.consecutive_steps % self.max_steps_episodic == 0:
+            is_success_step = 1
+            self.total_successes += 1
+
+        # Termina a sessão contínua quando o alvo de sucessos (target_count) for atingido
+        if self.total_successes >= self.success_threshold:
+            truncated = True
+        
+        # 4. MÉTRICAS CONTÍNUAS
+        info["raw_reward"] = float(raw_reward)
+
+        
+        info["is_success"] = is_success_step
+
+        # 5. REWARD SHAPING PARA A REDE APRENDER
+        if self.use_shaping:
+            # Cálculo do Score Contínuo baseado na inclinação
+            score_continuo = max(0.0, 1.0 - (theta_abs / self.fail_theta))
+            if hit_wall or theta_abs >= self.fail_theta:
+                score_continuo = -1.0
+                info["step_score"] = score_continuo
+            reward = score_continuo 
+        else:
+            reward = float(raw_reward)
+            info["step_score"] = float(raw_reward)
+            
+        return obs, reward, terminated, truncated, info
+    
+class BipedalWalkerDiscreteWrapper(gym.ActionWrapper):
+    """
+    Tradutor de ações para o DQN no BipedalWalker.
+    Suporta tanto modo Combinatório (81 ações) quanto Independente (4 ações).
+    Converte para torques contínuos de [-1.0, 0.0, 1.0].
+    """
+    def __init__(self, env, is_independent: bool = False):
+        super().__init__(env)
+        self.is_independent = is_independent
+        
+        if self.is_independent:
+            # Modo Independente: 4 juntas, 3 opções de força cada [0, 1, 2]
+            self.action_space = spaces.MultiDiscrete([3, 3, 3, 3])
+        else:
+            # Modo Combinatório: 3^4 = 81 ações possíveis
+            self.action_space = spaces.Discrete(81)
+
+    def action(self, action):
+        if self.is_independent:
+            # Array de [0, 1, 2] vira [-1.0, 0.0, 1.0] subtraindo 1
+            return (np.array(action, dtype=np.float32) - 1.0)
+        else:
+            # Modo Combinatório: Converte Int Base-10 para Base-3
+            act = int(action)
+            a0 = (act // 27) % 3 - 1
+            a1 = (act // 9) % 3 - 1
+            a2 = (act // 3) % 3 - 1
+            a3 = act % 3 - 1
+            return np.array([a0, a1, a2, a3], dtype=np.float32)
+    
+class BipedalWalkerWrapper(gym.Wrapper):
+    """
+    Wrapper para BipedalWalker-v3.
+    Pune rastejamento (Knee-Walker) e define métricas contínuas para o Tuning.
+    """
+    def __init__(self, env, use_shaping=True):
+        super().__init__(env)
+        self.use_shaping = use_shaping
+        self.total_reward = 0.0
+
+    def reset(self, **kwargs):
+        self.total_reward = 0.0
+        return self.env.reset(**kwargs)
+
+    def step(self, action):
+        obs, raw_reward, terminated, truncated, info = self.env.step(action)
+        
+        # A recompensa original do Gym foca em avançar no eixo X.
+        info["raw_reward"] = float(raw_reward)
+        
+        self.total_reward += float(raw_reward)
+        
+        # 1. SUCESSO EPISÓDICO: Completou a corrida com score robusto (tocar a bandeira vermelha)
+        info["is_success"] = 1 if (terminated or truncated) and self.total_reward >= 300.0 else 0
+
+        # --- REWARD SHAPING ---
+        if self.use_shaping:
+            hull_angle = obs[0]
+            # Saturação de inclinação suave
+            posture_multiplier = max(0.0, np.cos(hull_angle))
+            
+            # Penalidade leve por andar agachado (Bent-Knee Penalty)
+            # obs[6] e obs[11] guardam os ângulos dos joelhos esquerdo/direito.
+            knee_bending = abs(obs[6]) + abs(obs[11])
+            knee_penalty = 0.1 * knee_bending
+            
+            # O Step Score é atenuado pela inclinação (recompensa por andar ereto)
+            step_score = max(0.0, float(raw_reward) * posture_multiplier - knee_penalty)
+            info["step_score"] = step_score
+            
+            # A recompensa para a rede aprender com postura ereta
+            reward = float(raw_reward) * posture_multiplier - knee_penalty
+            if (terminated or truncated) and self.total_reward < 0.0:
+                reward -= 5.0
+        else:
+            info["step_score"] = float(raw_reward)
+            reward = float(raw_reward)
+            
+        return obs, reward, terminated, truncated, info
