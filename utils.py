@@ -230,127 +230,92 @@ def recursive_update(d: Dict[str, Any], u: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def load_config(path: str = "config.json") -> Dict[str, Any]:
+    """
+
+    """
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Arquivo não encontrado: {path}")
+        raise FileNotFoundError(f"[ERRO FATAL] Arquivo não encontrado: {path}")
 
     with open(path, "r", encoding="utf-8") as f:
         raw = json.load(f)
 
     # Verifica se é um arquivo já processado (salvo pelo train.py)
-    # Arquivos processados têm 'agent' e 'environment' na raiz e não dependem de 'selection'
     is_processed = ("agent" in raw and "environment" in raw and "definitions" not in raw)
-
     processed = {}
     
+    # FASE 1: EXTRAÇÃO E ACHATAMENTO (FAIL FAST)
     if is_processed:
-        # Caminho Curto: Já está no formato certo, só precisamos regenerar listas dinâmicas
         processed = raw
         target_env_def = processed["environment"]
         sel_ag = processed["agent"]["type"]
         use_res = target_env_def.get("use_reservoir", False) or sel_ag == "LSM"
         
-        if use_res:
-            if "LSM" not in processed:
-                raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas a chave 'LSM' não existe no config.")
-            res_conf = processed["LSM"]
-
-        defs = {}
-        
+        if use_res and "LSM" not in processed:
+            raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas a chave 'LSM' não existe no arquivo.")
+            
     else:
-        # Caminho Longo: Processa o arquivo raw com 'definitions' e 'selection'
         if "selection" not in raw: 
             raise KeyError("[ERRO FATAL] Arquivo de configuração sem a chave 'selection'.")
         
+        # Busca os dados
         processed["training"] = raw.get("training", {})
         sel_ag = raw["selection"]["agent"]
         sel_env = raw["selection"]["environment"]
-        defs = raw.get("definitions", {})
+        
+        if "definitions" not in raw:
+            raise KeyError("[ERRO FATAL] Arquivo sem a chave 'definitions'.")
+        defs = raw["definitions"]
 
         # Resolve Agentes
-        if sel_ag not in defs["agents"]: 
+        if "agents" not in defs or sel_ag not in defs["agents"]: 
             raise KeyError(f"[ERRO FATAL] Agente '{sel_ag}' não encontrado em definitions -> agents.")
         
         processed["agent"] = {"type": sel_ag}
         processed[sel_ag] = defs["agents"][sel_ag].copy()
         
         # Resolve Ambientes
-        if sel_env not in defs["environments"]: 
+        if "environments" not in defs or sel_env not in defs["environments"]: 
             raise KeyError(f"[ERRO FATAL] Ambiente '{sel_env}' não encontrado em definitions -> environments.")
         
         target_env_def = defs["environments"][sel_env].copy()
 
+        # Resolve Dependências do Reservatório
         use_res = target_env_def.get("use_reservoir", False) or sel_ag == "LSM"
         if use_res:
             if "LSM" not in defs["agents"]:
                 raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas 'LSM' não encontrado em definitions -> agents.")
             
-            # [A CHAVE DO SUCESSO] Traz o LSM limpo para a raiz do config, acessível a todos
+            # Traz o LSM para a raiz
             processed["LSM"] = defs["agents"]["LSM"].copy()
-            res_conf = processed["LSM"]
 
-            # Se o agente for LSM, ele instanciará um modelo secundário. 
-            # Esse modelo precisa das configurações dele na raiz (processed).
+            # Se o agente principal for LSM, traz o modelo de readout para a raiz também
             if sel_ag == "LSM":
-                readout_ag = res_conf.get("standard_model", "PPO")
+                readout_ag = processed["LSM"].get("standard_model", "PPO")
                 if readout_ag not in defs["agents"]:
                     raise KeyError(f"[ERRO FATAL] Modelo de readout '{readout_ag}' não encontrado em definitions -> agents.")
                 processed[readout_ag] = defs["agents"][readout_ag].copy()
 
-    # --- GERAÇÃO DE SPECS ---
+    # FASE 2: CONSTRUÇÃO DO OBSERVATION_SPECS
     templates = target_env_def.get("spec_templates")
 
-    # 1. VERIFICAÇÃO DO RESERVATÓRIO 
-    if use_res:
-        res_conf = defs.get("agents", {}).get("LSM", defs.get("agents", {}).get("Reservoir", {}))
-        # Se o arquivo já for processado, o config do reservatório pode estar na raiz
-        if not res_conf and is_processed:
-            res_conf = processed.get("lsm", processed.get("reservoir", {}))
-
-        res_size = int(res_conf.get("reservoir_size", 100))
-
-        # Identifica o consumidor dos dados do reservatório
-        actual_consumer = sel_ag
-        if actual_consumer == "LSM":
-            actual_consumer = res_conf["standard_model"]
-            
-        # O modleo AHAH sofre quantização de 1-bit para pular o SAOL e agilizar o treino.
-        # Os modelos clássicos recebem alta resolução para manter o sinal analógico.
-        res_bits = 1 if actual_consumer == "AHAH" else 16
-        
-        target_env_def["observation_spec"] = [
-            {"name": f"res_{i}", "type": "linear", "min": -1.0, "max": 1.0, "bits": res_bits}
-            for i in range(res_size)
-        ]
-        target_env_def.pop("spec_templates", None) # Ignora sensores geométricos/físicos
-
     # Verifica se precisa gerar a lista a partir de templates
-    if "spec_templates" in target_env_def:
+    if templates is not None and (target_env_def["name"] == "BipedalWalker" or "spec_templates" in target_env_def):
         num_joints = int(target_env_def.get("num_joints", 2))
         mode = target_env_def.get("obs_mode", "geometric")
         
         generated_spec = []
         if target_env_def["name"] == "BipedalWalker":
-            # "angle" para posições (-3.14 a 3.14)
-            # "vector" para velocidades (-5 a 5)
-            # "eye" para LIDAR e contatos com o solo (0 a 1)
-            
-            #[0] Hull Angle
             s = templates["angle"].copy(); s["name"] = "hull_angle"; generated_spec.append(s)
-            # [1, 2, 3] Velocidades do corpo
             for i in range(3):
                 s = templates["vector"].copy(); s["name"] = f"hull_vel_{i}"; generated_spec.append(s)
-            
-            # [4 a 13] Juntas das Pernas
             for leg in range(2):
                 for joint in ["hip", "knee"]:
                     s = templates["angle"].copy(); s["name"] = f"pos_{leg}_{joint}"; generated_spec.append(s)
                     s = templates["vector"].copy(); s["name"] = f"vel_{leg}_{joint}"; generated_spec.append(s)
-                # Sensor de Contato com o chão (0 a 1)
                 s = templates["eye"].copy(); s["name"] = f"contact_{leg}"; generated_spec.append(s)
-                
-            #[14 a 23] LIDAR (0 a 1)
             for i in range(10):
                 s = templates["eye"].copy(); s["name"] = f"lidar_{i}"; generated_spec.append(s)
+                
         elif mode == "geometric":
             for i in range(num_joints):
                 s = templates["angle"].copy(); s["name"] = f"sin_j{i+1}"; generated_spec.append(s)
@@ -358,6 +323,7 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
                 s = templates["angle"].copy(); s["name"] = f"cos_j{i+1}"; generated_spec.append(s)
             for axis in ["dx", "dy"]:
                 s = templates["vector"].copy(); s["name"] = f"vec_{axis}"; generated_spec.append(s)
+                
         elif mode == "physical":
             for i in range(num_joints):
                 s = templates["angle"].copy(); s["name"] = f"sin_j{i+1}"; generated_spec.append(s)
@@ -366,11 +332,29 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
             for eye in ["L", "R"]:
                 s = templates["eye"].copy(); s["name"] = f"eye_{eye}_dist"; generated_spec.append(s)
         
-        
-        # Injeta a lista gerada no dicionário do ambiente
         target_env_def["observation_spec"] = generated_spec
 
-    # Se não for processado, finaliza a montagem. Se for, já atualizamos a ref.
+    # Salva o tamanho original para os logs de arquitetura
+    target_env_def["orig_input_dim"] = len(target_env_def.get("observation_spec", []))
+
+    # FASE 3: SOBRESCRITA DO RESERVATÓRIO
+    if use_res:
+        # Puxa direto da raiz processada
+        res_conf = processed["LSM"]
+        res_size = int(res_conf["reservoir_size"])
+
+        # Identifica o consumidor dos dados para a quantização
+        actual_consumer = res_conf.get("standard_model", "PPO") if sel_ag == "LSM" else sel_ag
+        res_bits = 1 if actual_consumer == "AHAH" else 16
+        
+        target_env_def["observation_spec"] = [
+            {"name": f"res_{i}", "type": "linear", "min": -1.0, "max": 1.0, "bits": res_bits}
+            for i in range(res_size)
+        ]
+        # Remove os templates originais para o sanitize_config não poluir o JSON
+        target_env_def.pop("spec_templates", None)
+
+    # Finalização
     if not is_processed:
         processed["environment"] = target_env_def
 

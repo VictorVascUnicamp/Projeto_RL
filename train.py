@@ -222,6 +222,14 @@ def train_session(
     # Extrai todos os dados da arquitetura
     arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
+    use_res = config["environment"].get("use_reservoir", False) or agent_type == "LSM"
+    if use_res and isinstance(arch_info, dict) and arch_info:
+        orig_in = config["environment"].get("orig_input_dim", "?")
+        res_size = arch_info.get("input_dim", "?") 
+        out_dim = arch_info.get("output_dim", arch_info.get("output_fibers", "?"))
+        
+        arch_info["architecture"] = f"({orig_in} -> Reservoir[{res_size}] -> {out_dim})"
+
     # Extração do Reservatório
     res_state = None
     curr = env

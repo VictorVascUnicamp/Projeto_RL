@@ -4,10 +4,10 @@
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'LSM' ou 'Random'.",
     "agent": "LSM",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "BipedalWalker"
+    "environment": "Reacher2D"
   },
   "training": {
-    "episodes": 5000,
+    "episodes": 1000,
     "_reduction_factor_help": "Divide episódios (ou passos) por este valor durante o tuning e validação.",
     "reduction_factor": 5,
     "_learning_mode_options": "'episodic' ou 'continuous'.",
@@ -27,10 +27,10 @@
       "LSM": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 50,
-        "spectral_radius": 0.9,
-        "leak_rate": 0.2,
-        "sparsity": 0.1
+        "reservoir_size": 80,
+        "spectral_radius": 1.156612223167585,
+        "leak_rate": 0.0773634130024635,
+        "sparsity": 0.2656219916816829
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
@@ -125,7 +125,359 @@
             "max": 3.0,
             "bits": 10
           }
-        }
+        },
+        "observation_spec": [
+          {
+            "name": "res_0",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_1",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_2",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_3",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_4",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_5",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_6",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_7",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_8",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_9",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_10",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_11",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_12",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_13",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_14",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_15",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_16",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_17",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_18",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_19",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_20",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_21",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_22",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_23",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_24",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_25",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_26",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_27",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_28",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_29",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_30",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_31",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_32",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_33",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_34",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_35",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_36",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_37",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_38",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_39",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_40",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_41",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_42",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_43",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_44",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_45",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_46",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_47",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_48",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_49",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          }
+        ]
       },
       "CartPole": {
         "name": "CartPole",
@@ -186,7 +538,359 @@
             "max": 1.0,
             "bits": 12
           }
-        }
+        },
+        "observation_spec": [
+          {
+            "name": "res_0",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_1",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_2",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_3",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_4",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_5",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_6",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_7",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_8",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_9",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_10",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_11",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_12",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_13",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_14",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_15",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_16",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_17",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_18",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_19",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_20",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_21",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_22",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_23",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_24",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_25",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_26",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_27",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_28",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_29",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_30",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_31",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_32",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_33",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_34",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_35",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_36",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_37",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_38",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_39",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_40",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_41",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_42",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_43",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_44",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_45",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_46",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_47",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_48",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_49",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          }
+        ]
       }
     }
   }
