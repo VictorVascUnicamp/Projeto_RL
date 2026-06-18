@@ -63,36 +63,36 @@ grades_de_teste = [
     #     "encoder": ["adaptive"],
     #     "use_reservoir": [False]
     # }
-    # GRADE 5: Otimização do LSM
-    {
-        "env": ["CartPole", "Reacher2D"],
-        "agent": ["LSM"],
-        "mode": ["episodic", "continuous"]
-    },
-    {
-        "env": ["BipedalWalker"],
-        "agent": ["LSM"],
-        "mode": ["episodic"]
-    },
-    # # GRADE 6: AHAH com Reservatório
+    # # GRADE 5: Otimização do LSM
     # {
     #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [True]
+    #     "agent": ["LSM"],
+    #     "mode": ["episodic", "continuous"]
     # },
     # {
     #     "env": ["BipedalWalker"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [True]
-    # }
+    #     "agent": ["LSM"],
+    #     "mode": ["episodic"]
+    # },
+    # GRADE 6: AHAH com Reservatório
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [True]
+    },
+    {
+        "env": ["BipedalWalker"],
+        "agent": ["AHAH"],
+        "mode": ["episodic"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [True]
+    }
 ]
 
 contador = 0
@@ -104,8 +104,9 @@ for grade in grades_de_teste:
     biases = grade.get("bias", [None])
     temporais = grade.get("temporal", [None])
     encoders = grade.get("encoder", [None])
+    use_reservoirs = grade.get("use_reservoir", [False])
 
-    for env, agent, mode, bias, temporal, encoder in itertools.product(envs, agents, modes, biases, temporais, encoders):
+    for env, agent, mode, bias, temporal, encoder, use_res in itertools.product(envs, agents, modes, biases, temporais, encoders, use_reservoirs):
         cfg = copy.deepcopy(base_config)
         
         # --- APLICAÇÃO GERAL ---
@@ -116,6 +117,8 @@ for grade in grades_de_teste:
         cfg["training"]["target_count"] = 100
         
         env_dict = cfg["definitions"]["environments"][env]
+
+        env_dict["use_reservoir"] = use_res
         
         # Duração do treino  
         if agent == "Random": cfg["training"]["episodes"] = 50
@@ -123,6 +126,9 @@ for grade in grades_de_teste:
 
         # Monta o nome do arquivo dinamicamente
         nome_partes = [env, agent, mode[:4]]
+
+        if use_res:
+            nome_partes.append("Res")
         
         # --- APLICAÇÃO ESPECÍFICA DO AHAH ---
         if agent == "AHAH":
@@ -130,11 +136,15 @@ for grade in grades_de_teste:
             cfg["definitions"]["agents"]["AHAH"]["use_temporal_encoder"] = temporal
             cfg["definitions"]["agents"]["AHAH"]["encoder_type"] = encoder
             cfg["training"]["freeze"] = False
+
+            if use_res:
+                temporal = False
+                encoder = "fixed"
             
             nome_partes.append(f"Bias{bias}")
             if temporal:
                 nome_partes.append("Temp")
-            if encoder == "fixed":
+            if encoder == "fixed" and not use_res:
                 nome_partes.append("Fixed")
         else:
             cfg["training"]["freeze"] = True

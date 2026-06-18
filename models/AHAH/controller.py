@@ -59,13 +59,13 @@ class AHAHController(BaseAgent):
         enc_bias = self.bias_per_node 
         
         # 1. Escolha do Encoder Base
-        self.encoder_type = ahah_conf["encoder_type", "fixed"]
+        self.encoder_type = ahah_conf["encoder_type"]
         
         # Inicializa variável para evitar erro de 'possibly unbound' do Pylance
         base_encoder = None 
         
         if self.encoder_type == "adaptive":
-            enc_beta = float(ahah_conf["encoder_beta", 0.05])
+            enc_beta = float(ahah_conf.get("encoder_beta", 0.05))
             base_encoder = AdaptiveSpikeEncoder(
                 specs, 
                 bias_per_node=enc_bias, 
@@ -77,7 +77,7 @@ class AHAHController(BaseAgent):
             base_encoder = GeneralSpikeEncoder(specs, bias_per_node=enc_bias)
             
         # 2. Aplicação do Wrapper Temporal (Memória de Curto Prazo)
-        use_temporal = ahah_conf["use_temporal_encoder", False]
+        use_temporal = ahah_conf.get("use_temporal_encoder", False)
         
         if use_temporal:
             # Memória definida em passos (inteiro)
