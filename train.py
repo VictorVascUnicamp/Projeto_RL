@@ -116,102 +116,108 @@ def train_session(
     
     # 3. Loop Principal de Treinamento
     for ep in range(episodes):
-        obs, _ = env.reset(seed=seed + ep)
-        
-        # Limpa memória de curto prazo
-        agent.reset()
+        try:
+            obs, _ = env.reset(seed=seed + ep)
+            
+            # Limpa memória de curto prazo
+            agent.reset()
 
-        # Inicializamos as variáveis
-        done = False
-        ep_score = 0.0   
-        window_score = 0.0  
-        steps = 0
-        
-        while not done:
-            action = agent.get_action(obs)
-            next_obs, reward, term, trunc, info = env.step(action)
-            done = term or trunc
+            # Inicializamos as variáveis
+            done = False
+            ep_score = 0.0   
+            window_score = 0.0  
+            steps = 0
             
-            agent.update(obs, action, float(reward), next_obs, done)
-            
-            # Coleta as pontuações do ambiente
-            step_score = float(info.get("step_score", 0.0))
-            raw = float(info.get("raw_reward", reward))
-
-            ep_score += step_score
-            window_score += step_score
-            
-            # Coleta os sucessos
-            if info.get("is_success", 0) > 0:
-                success += int(info["is_success"])
-            
-            # --- LÓGICA DO MODO CONTÍNUO ---
-            if learning_mode == "continuous":
-                # Salva os dados a cada N passos para gerar o gráfico
-                if steps > 0 and steps % save_interval_steps == 0:
-                    session_metrics["window_scores"].append(window_score)
-                    session_metrics["success"].append(success)
-                    window_score = 0.0 # Zera para o próximo periodo
+            while not done:
+                action = agent.get_action(obs)
+                next_obs, reward, term, trunc, info = env.step(action)
+                done = term or trunc
                 
-                agent.decay_epsilon()
-
-                # Checkpoint
-                if my_ckpt_dir and steps > 0 and steps % save_interval_steps == 0:
-                    ext = "npz" if agent_type == "AHAH" else "pth"
-                    if agent_type != "Random":
-                        agent.save(os.path.join(my_ckpt_dir, f"latest_model.{ext}"))
-            
-            obs = next_obs
-            steps += 1
-
-        # --- LÓGICA DO FIM DO EPISÓDIO ---
-        agent.decay_epsilon()
-       
-        if learning_mode != "continuous":
-            # No modo episódico, a "janela" é o episódio inteiro.
-            session_metrics["window_scores"].append(ep_score)
-            session_metrics["success"].append(success)
-            
-        # Salva o Total para o JSON, diferente dos gráficos.
-        session_metrics["ep_scores"].append(ep_score)
-        session_metrics["lengths"].append(steps)
-        
-        # --- [NOVO] RASTREAMENTO DO MELHOR MODELO & PARADA PRECOCE ---
-        if agent_type != "Random":
-            # Calcula a média móvel com base nos retornos episódicos reais
-            window = min(len(session_metrics["ep_score"]), ma_val)
-            if window > 0:
-                current_ma = np.mean(session_metrics["ep_score"][-window:])
+                agent.update(obs, action, float(reward), next_obs, done)
                 
-                # Salva os pesos na RAM se bater o recorde histórico
-                if current_ma > best_ma_score:
-                    best_ma_score = current_ma
-                    best_model_state = agent.get_state()
+                # Coleta as pontuações do ambiente
+                step_score = float(info.get("step_score", 0.0))
+                raw = float(info.get("raw_reward", reward))
+
+                ep_score += step_score
+                window_score += step_score
+                
+                # Coleta os sucessos
+                if info.get("is_success", 0) > 0:
+                    success += int(info["is_success"])
+                
+                # --- LÓGICA DO MODO CONTÍNUO ---
+                if learning_mode == "continuous":
+                    # Salva os dados a cada N passos para gerar o gráfico
+                    if steps > 0 and steps % save_interval_steps == 0:
+                        session_metrics["window_scores"].append(window_score)
+                        session_metrics["success"].append(success)
+                        window_score = 0.0 # Zera para o próximo periodo
                     
-                # Parada precoce baseada na taxa de sucesso com janela de tolerância
-                if target_count is not None:
-                    window_x = int(target_count * 1.1) # Tolerância de 10%
-                    # Verifica se temos episódios suficientes + 1 para subtrair com segurança
-                    if len(session_metrics["success"]) >= window_x+1:
-                        # Calcula as vitórias conquistadas dentro da janela móvel
-                        success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x+1)]
-                        if success_in_window >= target_count:
-                            print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo de performance atingido ({success_in_window} sucessos nos últimos {window_x} episódios)." 
-                                  f"Parando o treino no episódio {ep+1}!", flush=True)
-                            break  
+                    agent.decay_epsilon()
 
-        # Feedback em Tempo Real (Apenas sessão principal e modo episódico)
-        if learning_mode == "episodic" and session_id == 0:
-            if (ep + 1) % save_interval_eps == 0:
-                avg_score = np.mean(session_metrics["ep_scores"][-10:])
-                print(f"[Ep {ep+1}/{episodes}] Score: {avg_score:.2f} | Passos: {steps}", flush=True)
+                    # Checkpoint
+                    if my_ckpt_dir and steps > 0 and steps % save_interval_steps == 0:
+                        ext = "npz" if agent_type == "AHAH" else "pth"
+                        if agent_type != "Random":
+                            agent.save(os.path.join(my_ckpt_dir, f"latest_model.{ext}"))
+                
+                obs = next_obs
+                steps += 1
 
-        # CHECKPOINT POR EPISÓDIO
-        if my_ckpt_dir and (ep + 1) % save_interval_eps == 0:
-            ext = "npz" if agent_type == "AHAH" else "pth"
+            # --- LÓGICA DO FIM DO EPISÓDIO ---
+            agent.decay_epsilon()
+        
+            if learning_mode != "continuous":
+                # No modo episódico, a "janela" é o episódio inteiro.
+                session_metrics["window_scores"].append(ep_score)
+                session_metrics["success"].append(success)
+                
+            # Salva o Total para o JSON, diferente dos gráficos.
+            session_metrics["ep_scores"].append(ep_score)
+            session_metrics["lengths"].append(steps)
+            
+            # --- [NOVO] RASTREAMENTO DO MELHOR MODELO & PARADA PRECOCE ---
             if agent_type != "Random":
-                save_name = os.path.join(my_ckpt_dir, f"latest_model.{ext}")
-                agent.save(save_name)
+                # Calcula a média móvel com base nos retornos episódicos reais
+                window = min(len(session_metrics["ep_score"]), ma_val)
+                if window > 0:
+                    current_ma = np.mean(session_metrics["ep_score"][-window:])
+                    
+                    # Salva os pesos na RAM se bater o recorde histórico
+                    if current_ma > best_ma_score:
+                        best_ma_score = current_ma
+                        best_model_state = agent.get_state()
+                        
+                    # Parada precoce baseada na taxa de sucesso com janela de tolerância
+                    if target_count is not None:
+                        window_x = int(target_count * 1.1) # Tolerância de 10%
+                        # Verifica se temos episódios suficientes + 1 para subtrair com segurança
+                        if len(session_metrics["success"]) >= window_x+1:
+                            # Calcula as vitórias conquistadas dentro da janela móvel
+                            success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x+1)]
+                            if success_in_window >= target_count:
+                                print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo de performance atingido ({success_in_window} sucessos nos últimos {window_x} episódios)." 
+                                    f"Parando o treino no episódio {ep+1}!", flush=True)
+                                break  
+
+            # Feedback em Tempo Real (Apenas sessão principal e modo episódico)
+            if learning_mode == "episodic" and session_id == 0:
+                if (ep + 1) % save_interval_eps == 0:
+                    avg_score = np.mean(session_metrics["ep_scores"][-10:])
+                    print(f"[Ep {ep+1}/{episodes}] Score: {avg_score:.2f} | Passos: {steps}", flush=True)
+
+            # CHECKPOINT POR EPISÓDIO
+            if my_ckpt_dir and (ep + 1) % save_interval_eps == 0:
+                ext = "npz" if agent_type == "AHAH" else "pth"
+                if agent_type != "Random":
+                    save_name = os.path.join(my_ckpt_dir, f"latest_model.{ext}")
+                    agent.save(save_name)
+
+        except Exception as e:
+            print(f"\n[Sessão {session_id}] [ERRO FATAL] Ambiente colapsou no episódio {ep+1} ({type(e).__name__}: {e}).")
+            print("Salvando o melhor modelo histórico e encerrando sessão para não perder os dados")
+            break  # Interrompe o loop de episódios e segue para salvar os resultados
 
     env.close()
     total_time = time.time() - start_time

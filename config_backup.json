@@ -2,7 +2,7 @@
   "_README": "Este arquivo controla todos os parametros. Chaves com _ são apenas comentários.",
   "selection": {
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'LSM' ou 'Random'.",
-    "agent": "LSM",
+    "agent": "AHAH",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
     "environment": "Reacher2D"
   },
@@ -15,7 +15,7 @@
     "_target_count_help": "Se continuous, quantos alvos antes de terminar o episódio. Se episodic, critério de parada.",
     "target_count": 100,
     "_freeze_help": "Se true, não aprende na validação. Se false, continua aprendendo.",
-    "freeze": true,
+    "freeze": false,
     "render": false,
     "save_frequency": 50,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
@@ -27,10 +27,10 @@
       "LSM": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 80,
-        "spectral_radius": 1.156612223167585,
-        "leak_rate": 0.0773634130024635,
-        "sparsity": 0.2656219916816829
+        "reservoir_size": 100,
+        "spectral_radius": 0.921815093548201,
+        "leak_rate": 0.4971657330012444,
+        "sparsity": 0.19327545977625166
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
@@ -38,7 +38,7 @@
         "fibers_per_joint": 12,
         "bias_per_node": 1,
         "_bias_mode_options": "'A' (Eq.16/ Fuctional model A), 'B' (Eq.17/F. M. B ), 'C' (Novo/Simétrico)",
-        "bias_update_mode": "C",
+        "bias_update_mode": "B",
         "alpha": 0.002871723665167376,
         "beta": 0.007192292490632275,
         "w_min": -1.0,
@@ -46,12 +46,13 @@
         "decay": 8.042656840347169e-05,
         "noise_std": 0.0004983790284326925,
         "_encoder_options": "'fixed' (simples) ou 'adaptive' (AHAH SAOL)",
-        "encoder_type": "adaptive",
+        "encoder_type": "fixed",
         "encoder_beta": 0.00029712827233244204,
         "_temporal_encoder_desc": "Encoder temporal da memória de curto prazo para o AHAH",
         "use_temporal_encoder": false,
         "temporal_memory": 7,
-        "policy": "greedy"
+        "policy": "greedy",
+        "global_resolution": 1
       },
       "DQN": {
         "_desc": "Modelo tradicional de RL",
@@ -476,9 +477,220 @@
             "min": -1.0,
             "max": 1.0,
             "bits": 16
+          },
+          {
+            "name": "res_50",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_51",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_52",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_53",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_54",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_55",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_56",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_57",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_58",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_59",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_60",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_61",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_62",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_63",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_64",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_65",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_66",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_67",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_68",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_69",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_70",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_71",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_72",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_73",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_74",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_75",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_76",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_77",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_78",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
+          },
+          {
+            "name": "res_79",
+            "type": "linear",
+            "min": -1.0,
+            "max": 1.0,
+            "bits": 16
           }
         ],
-        "orig_input_dim": 8
+        "orig_input_dim": 8,
+        "use_reservoir": true
       },
       "CartPole": {
         "name": "CartPole",
@@ -514,7 +726,8 @@
             "bits": 12
           }
         ],
-        "orig_input_dim": 4
+        "orig_input_dim": 4,
+        "use_reservoir": true
       },
       "BipedalWalker": {
         "name": "BipedalWalker",
@@ -893,7 +1106,8 @@
             "bits": 16
           }
         ],
-        "orig_input_dim": 24
+        "orig_input_dim": 24,
+        "use_reservoir": true
       }
     }
   }

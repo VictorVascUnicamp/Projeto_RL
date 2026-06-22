@@ -147,35 +147,43 @@ def run_single_seed(config: Dict[str, Any], episodes_to_run: int, seed: int) -> 
 
     scores = [] 
     successes = []
+    arch_info = {}
     
     for ep_idx in range(episodes_to_run):
-        obs, _ = env.reset(seed=seed+ep_idx)
-        agent.reset()
-        
-        done = False
-        ep_score = 0.0
-        success = 0
+        try:
+            obs, _ = env.reset(seed=seed+ep_idx)
+            agent.reset()
+            
+            done = False
+            ep_score = 0.0
+            success = 0
 
-        while not done:
-            action = agent.get_action(obs)
-            next_obs, reward, term, trunc, info = env.step(action)
-            done = term or trunc
-            
-            agent.update(obs, action, float(reward), next_obs, done)
-            
-            # Coleta métrica padronizada
-            ep_score += float(info.get("step_score", 0.0))
-            
-            obs = next_obs
-            
-            # Decay Contínuo
-            if learning_mode == "continuous" and agent_type == "DQN": agent.decay_epsilon()
+            while not done:
+                action = agent.get_action(obs)
+                next_obs, reward, term, trunc, info = env.step(action)
+                done = term or trunc
+                
+                agent.update(obs, action, float(reward), next_obs, done)
+                
+                # Coleta métrica padronizada
+                ep_score += float(info.get("step_score", 0.0))
+                
+                obs = next_obs
+                
+                # Decay Contínuo
+                if learning_mode == "continuous" and agent_type == "DQN": agent.decay_epsilon()
 
-        # Decay Episódico
-        if learning_mode != "continuous" and agent_type == "DQN": agent.decay_epsilon()
+            # Decay Episódico
+            if learning_mode != "continuous" and agent_type == "DQN": agent.decay_epsilon()
 
-        scores.append(ep_score)
-        successes.append(success)
+            scores.append(ep_score)
+            successes.append(success)
+
+        except Exception as e:
+            # Captura o erro no nível do ambiente (para evitar poluição de mensagens)
+            print(f"[ERRO FATAL] Semente {seed+ep_idx} abortada: {type(e).__name__}: {e}")
+            env.close()
+            return -float("inf"), 0.0, arch_info
 
     arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
@@ -386,7 +394,12 @@ def main():
                             }
                         }
                         base_config = utils.recursive_update(base_config, filtro_injecao)
-                        # Se o HPO injetou um Reservatório novo, a lista de sensores base DEVE ser atualizada!
+
+                        # Se o load_config já puxou o agente para a raiz, atualiza a raiz também
+                        if target_dependency in base_config:
+                            base_config[target_dependency].update(dep_params)
+
+                        # Regenera a lista de sensores se o reservatório mudar
                         if target_dependency == "LSM" and "reservoir_size" in dep_params:
                             res_size = int(dep_params["reservoir_size"])
                             res_bits = 1 if agent_type == "AHAH" else 16
