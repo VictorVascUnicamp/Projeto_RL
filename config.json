@@ -1,7 +1,7 @@
 {
   "_README": "Este arquivo controla todos os parametros. Chaves com _ são apenas comentários.",
   "selection": {
-    "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'LSM' ou 'Random'.",
+    "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
     "agent": "AHAH",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
     "environment": "Reacher2D"
@@ -24,7 +24,7 @@
   },
   "definitions": {
     "agents": {
-      "LSM": {
+      "ESN": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
         "reservoir_size": 100,

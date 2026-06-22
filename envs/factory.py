@@ -82,16 +82,16 @@ def make_env(config: Dict[str, Any], reservoir_load_path: Optional[str] = None) 
         raise ValueError(f"Ambiente desconhecido: {name}")
 
     agent_type = config["agent"]["type"]
-    is_lsm = agent_type == "LSM"
-    use_res = env_conf.get("use_reservoir", False) or is_lsm
+    is_esn = agent_type == "ESN"
+    use_res = env_conf.get("use_reservoir", False) or is_esn
     
     if use_res:
         from envs.wrappers import ReservoirWrapper
 
-        if "LSM" not in config:
-            raise KeyError("[ERRO FATAL] Ambiente exige reservatório, mas a chave 'LSM' não foi passada ao factory.")
+        if "ESN" not in config:
+            raise KeyError("[ERRO FATAL] Ambiente exige reservatório, mas a chave 'ESN' não foi passada ao factory.")
             
-        res_conf = config["LSM"]
+        res_conf = config["ESN"]
 
         env = ReservoirWrapper(
             env,

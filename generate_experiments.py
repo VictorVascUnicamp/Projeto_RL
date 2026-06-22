@@ -63,15 +63,15 @@ grades_de_teste = [
     #     "encoder": ["adaptive"],
     #     "use_reservoir": [False]
     # }
-    # # GRADE 5: Otimização do LSM
+    # # GRADE 5: Otimização do ESN
     # {
     #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["LSM"],
+    #     "agent": ["ESN"],
     #     "mode": ["episodic", "continuous"]
     # },
     # {
     #     "env": ["BipedalWalker"],
-    #     "agent": ["LSM"],
+    #     "agent": ["ESN"],
     #     "mode": ["episodic"]
     # },
     # GRADE 6: AHAH com Reservatório

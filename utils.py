@@ -122,12 +122,12 @@ def create_agent(config: Dict[str, Any], env=None, model_path: Optional[str] = N
     cfg = copy.deepcopy(config)
     agent_type = cfg["agent"]["type"]
 
-    is_lsm = agent_type == "LSM"
-    use_res = cfg["environment"].get("use_reservoir", False) or is_lsm
+    is_esn = agent_type == "esn"
+    use_res = cfg["environment"].get("use_reservoir", False) or is_esn
     
-    if is_lsm:
-        # Se for o Agente LSM, mascaramos ele como o seu Readout Padrão (Ex: PPO)
-        agent_type = cfg.get("definitions", {}).get("agents", {}).get("LSM", {}).get("standard_model", "PPO")
+    if is_esn:
+        # Se for o Agente esn, mascaramos ele como o seu Readout Padrão (Ex: PPO)
+        agent_type = cfg.get("definitions", {}).get("agents", {}).get("esn", {}).get("standard_model", "PPO")
         cfg["agent"]["type"] = agent_type
 
     agent = None
@@ -248,10 +248,10 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         processed = raw
         target_env_def = processed["environment"]
         sel_ag = processed["agent"]["type"]
-        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "LSM"
+        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "esn"
         
-        if use_res and "LSM" not in processed:
-            raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas a chave 'LSM' não existe no arquivo.")
+        if use_res and "esn" not in processed:
+            raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas a chave 'esn' não existe no arquivo.")
             
     else:
         if "selection" not in raw: 
@@ -280,17 +280,17 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         target_env_def = defs["environments"][sel_env].copy()
 
         # Resolve Dependências do Reservatório
-        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "LSM"
+        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "esn"
         if use_res:
-            if "LSM" not in defs["agents"]:
-                raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas 'LSM' não encontrado em definitions -> agents.")
+            if "esn" not in defs["agents"]:
+                raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas 'esn' não encontrado em definitions -> agents.")
             
-            # Traz o LSM para a raiz
-            processed["LSM"] = defs["agents"]["LSM"].copy()
+            # Traz o esn para a raiz
+            processed["esn"] = defs["agents"]["esn"].copy()
 
-            # Se o agente principal for LSM, traz o modelo de readout para a raiz também
-            if sel_ag == "LSM":
-                readout_ag = processed["LSM"].get("standard_model", "PPO")
+            # Se o agente principal for esn, traz o modelo de readout para a raiz também
+            if sel_ag == "esn":
+                readout_ag = processed["esn"].get("standard_model", "PPO")
                 if readout_ag not in defs["agents"]:
                     raise KeyError(f"[ERRO FATAL] Modelo de readout '{readout_ag}' não encontrado em definitions -> agents.")
                 processed[readout_ag] = defs["agents"][readout_ag].copy()
@@ -340,11 +340,11 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
     # FASE 3: SOBRESCRITA DO RESERVATÓRIO
     if use_res:
         # Puxa direto da raiz processada
-        res_conf = processed["LSM"]
+        res_conf = processed["esn"]
         res_size = int(res_conf["reservoir_size"])
 
         # Identifica o consumidor dos dados para a quantização
-        actual_consumer = res_conf.get("standard_model", "PPO") if sel_ag == "LSM" else sel_ag
+        actual_consumer = res_conf.get("standard_model", "PPO") if sel_ag == "esn" else sel_ag
         res_bits = 1 if actual_consumer == "AHAH" else 16
         
         target_env_def["observation_spec"] = [
@@ -432,7 +432,7 @@ def validate_config_rules(config: Dict[str, Any]):
     agent_type = agent_meta["type"]
     env_name = env_conf["name"]
     
-    use_res = env_conf.get("use_reservoir", False) or agent_type == "LSM"
+    use_res = env_conf.get("use_reservoir", False) or agent_type == "esn"
     freeze = train_conf.get("freeze", True)
 
     # Regra 1: DQN/PPO devem congelar na validação
@@ -468,7 +468,7 @@ def validate_config_rules(config: Dict[str, Any]):
             
     # Regra 5: Reservatório substitui encoders no AHAH.
     if use_res:
-        actual_agent = config.get("definitions", {}).get("agents", {}).get("LSM", {}).get("standard_model", "PPO") if agent_type == "LSM" else agent_type
+        actual_agent = config.get("definitions", {}).get("agents", {}).get("esn", {}).get("standard_model", "PPO") if agent_type == "esn" else agent_type
         if actual_agent == "AHAH":
             ahah_conf = config.get("AHAH", config.get("definitions", {}).get("agents", {}).get("AHAH", {}))
             if ahah_conf.get("use_temporal_encoder", False):

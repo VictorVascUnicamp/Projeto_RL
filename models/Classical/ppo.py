@@ -170,7 +170,7 @@ class PPOAgent(BaseAgent):
                 self.num_joints = 1
                 self.act_dim = 2
 
-        use_res = env_conf.get("use_reservoir", False) or config["agent"]["type"] == "LSM"
+        use_res = env_conf.get("use_reservoir", False) or config["agent"]["type"] == "ESN"
 
         # Hiperparâmetros
         self.lr = float(ppo_conf.get("learning_rate", 3e-4))

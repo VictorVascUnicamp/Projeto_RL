@@ -47,7 +47,7 @@ def get_random_params(agent_type: str, base_config: Dict[str, Any]) -> Dict[str,
     params = {}
     use_res = base_config.get("environment", {}).get("use_reservoir", False)
 
-    if agent_type == "LSM":
+    if agent_type == "ESN":
         params = {
             "reservoir_size": int(np.random.choice([30, 50, 80, 100])),
             "spectral_radius": float(np.random.uniform(0.7, 1.2)),
@@ -187,7 +187,7 @@ def run_single_seed(config: Dict[str, Any], episodes_to_run: int, seed: int) -> 
 
     arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
-    use_res = config["environment"].get("use_reservoir", False) or agent_type == "LSM"
+    use_res = config["environment"].get("use_reservoir", False) or agent_type == "ESN"
     if use_res and isinstance(arch_info, dict) and arch_info:
         orig_in = config["environment"].get("orig_input_dim", "?")
         res_size = arch_info.get("input_dim", "?") 
@@ -227,7 +227,7 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
     if "reservoir_size" in params:
         res_size = int(params["reservoir_size"])
         # Verifica quem é o consumidor para manter os bits corretos
-        actual_consumer = config.get("definitions", {}).get("agents", {}).get("LSM", {}).get("standard_model", "PPO") if agent_type == "LSM" else agent_type
+        actual_consumer = config.get("definitions", {}).get("agents", {}).get("ESN", {}).get("standard_model", "PPO") if agent_type == "ESN" else agent_type
         res_bits = 1 if actual_consumer == "AHAH" else 16
         
         # Regenera a especificação de sensores para bater com a nova matriz (50, 80, 120, etc.)
@@ -357,16 +357,16 @@ def main():
     run_type_name = f"tuning_{learning_mode}"
 
      # --- INJEÇÃO DE DEPENDÊNCIAS (TRANSFER HPO) ---
-    is_lsm = (agent_type == "LSM")
-    use_res = base_config.get("environment", {}).get("use_reservoir", False) or is_lsm
+    is_esn = (agent_type == "ESN")
+    use_res = base_config.get("environment", {}).get("use_reservoir", False) or is_esn
     target_dependency = None
 
-    if is_lsm:
-        # Tuning do LSM busca a otimização do PPO (Readout)
-        target_dependency = base_config.get("definitions", {}).get("agents", {}).get("LSM", {}).get("standard_model", "PPO")
+    if is_esn:
+        # Tuning do ESN busca a otimização do PPO (Readout)
+        target_dependency = base_config.get("definitions", {}).get("agents", {}).get("ESN", {}).get("standard_model", "PPO")
     elif use_res:
-        # Tuning do AHAH com reservatório busca as matrizes otimizadas do LSM
-        target_dependency = "LSM"
+        # Tuning do AHAH com reservatório busca as matrizes otimizadas do ESN
+        target_dependency = "ESN"
 
     if target_dependency:
         print(f"\n[TRANSFER HPO] Buscando hiperparâmetros de '{target_dependency}' em '{env_name}' ({learning_mode})...")
@@ -400,7 +400,7 @@ def main():
                             base_config[target_dependency].update(dep_params)
 
                         # Regenera a lista de sensores se o reservatório mudar
-                        if target_dependency == "LSM" and "reservoir_size" in dep_params:
+                        if target_dependency == "ESN" and "reservoir_size" in dep_params:
                             res_size = int(dep_params["reservoir_size"])
                             res_bits = 1 if agent_type == "AHAH" else 16
                             base_config["environment"]["observation_spec"] = [
@@ -520,7 +520,7 @@ def main():
 
     # 5. Geração e Salvamento do Delta
 
-    # Usa a cópia do que já está na RAM (com as dependências LSM injetadas)
+    # Usa a cópia do que já está na RAM (com as dependências ESN injetadas)
     best_config_snapshot = copy.deepcopy(base_config)
     if agent_type in best_config_snapshot:
         best_config_snapshot[agent_type].update(best_params)

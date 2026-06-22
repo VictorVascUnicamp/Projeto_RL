@@ -92,7 +92,7 @@ class DQNAgent(BaseAgent):
         self.target_update_freq = int(dqn_conf.get("target_update_frequency", 100))
         
         # Leitura da Arquitetura Neural
-        use_res = env_conf.get("use_reservoir", False) or config["agent"]["type"] == "LSM"
+        use_res = env_conf.get("use_reservoir", False) or config["agent"]["type"] == "ESN"
         # Reservatório não usa camadas encondidas
         self.hidden_layers = dqn_conf.get("hidden_layers", [128, 128]) if not use_res else []
 

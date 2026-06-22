@@ -110,7 +110,7 @@ class BipedalWalkerWrapper(gym.Wrapper):
     
 class ReservoirWrapper(gym.Wrapper):
     """
-    Reservatório Físico (Echo State Network / LSM), 
+    Reservatório Físico (Echo State Network / ESN), 
     para ampliar o espaço de representação dos agentes.
     Utiliza a equação Leaky Integrate-and-Fire com saturação.
     """
