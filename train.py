@@ -228,7 +228,7 @@ def train_session(
     # Extrai todos os dados da arquitetura
     arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
-    use_res = config["environment"].get("use_reservoir", False) or agent_type == "ESN"
+    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "ESN"
     if use_res and isinstance(arch_info, dict) and arch_info:
         orig_in = config["environment"].get("orig_input_dim", "?")
         res_size = arch_info.get("input_dim", "?") 
@@ -286,29 +286,17 @@ def main():
     # GERAÇÃO DE SEMENTES ROBUSTAS
     ss = SeedSequence(int(time.time()))
 
-    # 2. Execução (Estratégia Híbrida)
-    if learning_mode == "continuous":
-        # MODO CONTÍNUO:
-        # Rodamos várias sessões em paralelo e pegamos a melhor.
-        num_sessions = N_JOBS
-        print(f"--- Treino Contínuo: {num_sessions} sessões paralelas ---", flush=True)
+    # 2. Execução
+    # Rodamos várias sessões em paralelo e pegamos a melhor.
+    num_sessions = N_JOBS
+    print(f"--- Treino Contínuo: {num_sessions} sessões paralelas ---", flush=True)
 
-        # Gera N sementes filhas independentes
-        child_seeds = ss.generate_state(num_sessions)
-        results = Parallel(n_jobs=num_sessions, backend="loky")(
-            delayed(train_session)(i, config, int(child_seeds[i]), checkpoints_dir)
-            for i in range(num_sessions)
-        )
-    else:
-        # MODO EPISÓDICO:
-        # Rodamos 1 sessão sequencial na thread principal.
-        num_sessions = 1
-        print(f"--- Treino Episódico: Sessão Única ---", flush=True)
-        
-        # Gera 1 semente única
-        single_seed = int(ss.generate_state(1)[0])
-        res = train_session(0, config, single_seed, checkpoints_dir)
-        results = [res]
+    # Gera N sementes filhas independentes
+    child_seeds = ss.generate_state(num_sessions)
+    results = Parallel(n_jobs=num_sessions, backend="loky")(
+        delayed(train_session)(i, config, int(child_seeds[i]), checkpoints_dir)
+        for i in range(num_sessions)
+    )
 
     global_total_time = time.time() - global_start_time
 

@@ -75,11 +75,13 @@ def create_results_folder(
     os.makedirs(parent_path, exist_ok=True)
     
     # 2. Lógica para criar o nome da pasta final
-    mode = config["training"]["learning_mode"][:4]
-    shaping = config["environment"].get("use_reward_shaping", False)
-    
+    mode = config["training"]["learning_mode"][:4]    
     partes_nome = [env, agent, mode]
-    partes_nome.append("ShapeT" if shaping else "ShapeF")
+
+    use_res = config.get(agent, {}).get("use_reservoir", False)
+
+    if use_res:
+        partes_nome.append("Res")
     
     if agent == "AHAH":
         if "AHAH" in config:
@@ -94,7 +96,7 @@ def create_results_folder(
         partes_nome.append(f"Bias{bias}")
         if use_temp:
             partes_nome.append("Temp")
-        if is_fixed:
+        if is_fixed and not use_res:
             partes_nome.append("Fixed")
             
     nome_final_base = "_".join(partes_nome)
@@ -122,12 +124,11 @@ def create_agent(config: Dict[str, Any], env=None, model_path: Optional[str] = N
     cfg = copy.deepcopy(config)
     agent_type = cfg["agent"]["type"]
 
-    is_esn = agent_type == "esn"
-    use_res = cfg["environment"].get("use_reservoir", False) or is_esn
+    is_esn = agent_type == "ESN"
     
     if is_esn:
         # Se for o Agente esn, mascaramos ele como o seu Readout Padrão (Ex: PPO)
-        agent_type = cfg.get("definitions", {}).get("agents", {}).get("esn", {}).get("standard_model", "PPO")
+        agent_type = cfg.get("definitions", {}).get("agents", {}).get("ESN", {}).get("standard_model", "PPO")
         cfg["agent"]["type"] = agent_type
 
     agent = None
@@ -248,9 +249,9 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         processed = raw
         target_env_def = processed["environment"]
         sel_ag = processed["agent"]["type"]
-        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "esn"
+        use_res = processed.get(sel_ag, {}).get("use_reservoir", False) or sel_ag == "ESN"
         
-        if use_res and "esn" not in processed:
+        if use_res and "ESN" not in processed:
             raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas a chave 'esn' não existe no arquivo.")
             
     else:
@@ -280,17 +281,17 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
         target_env_def = defs["environments"][sel_env].copy()
 
         # Resolve Dependências do Reservatório
-        use_res = target_env_def.get("use_reservoir", False) or sel_ag == "esn"
+        use_res = defs["agents"][sel_ag].get("use_reservoir", False) or sel_ag == "ESN"
         if use_res:
-            if "esn" not in defs["agents"]:
+            if "ESN" not in defs["agents"]:
                 raise KeyError("[ERRO FATAL] 'use_reservoir' ativado, mas 'esn' não encontrado em definitions -> agents.")
             
             # Traz o esn para a raiz
-            processed["esn"] = defs["agents"]["esn"].copy()
+            processed["ESN"] = defs["agents"]["ESN"].copy()
 
             # Se o agente principal for esn, traz o modelo de readout para a raiz também
-            if sel_ag == "esn":
-                readout_ag = processed["esn"].get("standard_model", "PPO")
+            if sel_ag == "ESN":
+                readout_ag = processed["ESN"].get("standard_model", "PPO")
                 if readout_ag not in defs["agents"]:
                     raise KeyError(f"[ERRO FATAL] Modelo de readout '{readout_ag}' não encontrado em definitions -> agents.")
                 processed[readout_ag] = defs["agents"][readout_ag].copy()
@@ -340,11 +341,11 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
     # FASE 3: SOBRESCRITA DO RESERVATÓRIO
     if use_res:
         # Puxa direto da raiz processada
-        res_conf = processed["esn"]
+        res_conf = processed["ESN"]
         res_size = int(res_conf["reservoir_size"])
 
         # Identifica o consumidor dos dados para a quantização
-        actual_consumer = res_conf.get("standard_model", "PPO") if sel_ag == "esn" else sel_ag
+        actual_consumer = res_conf.get("standard_model", "PPO") if sel_ag == "ESN" else sel_ag
         res_bits = 1 if actual_consumer == "AHAH" else 16
         
         target_env_def["observation_spec"] = [
@@ -360,65 +361,6 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
 
     return processed
 
-def _clean_env_dict(env_def: Dict[str, Any]):
-        """Limpa um dicionário de ambiente individual."""
-        if "spec_templates" in env_def and "observation_spec" in env_def:
-            # 1. Tenta inferir a resolução atual usada (pega do primeiro sensor)
-            spec_list = env_def["observation_spec"]
-            current_bits = None
-            if spec_list and len(spec_list) > 0:
-                current_bits = spec_list[0].get("bits")
-            
-            # 2. Atualiza os templates com a nova resolução (se encontrada)
-            if current_bits is not None:
-                for key, tmpl in env_def["spec_templates"].items():
-                    if isinstance(tmpl, dict):
-                        tmpl["bits"] = current_bits
-            
-            # 3. Remove a lista expandida (poluição)
-            del env_def["observation_spec"]
-        return env_def
-
-def sanitize_config(config: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Prepara o objeto de configuração para salvamento.
-    
-    Lógica Principal:
-    Se um ambiente usa 'spec_templates', esta função:
-    1. Lê os bits atuais da lista 'observation_spec' (que pode ter sido otimizada).
-    2. Atualiza os templates com esses bits.
-    3. Remove a lista 'observation_spec' para não poluir o JSON.
-    
-    Isso garante que o arquivo salvo contenha as regras (templates) atualizadas,
-    mas deixe a geração da lista para o load_config em tempo de execução.
-    """
-    # Trabalha em uma cópia profunda para não quebrar a execução atual
-    clean_conf = copy.deepcopy(config)
-
-    # A. Limpa a chave ativa 'environment' (usada no train/tuning)
-    if "environment" in clean_conf:
-        clean_conf["environment"] = _clean_env_dict(clean_conf["environment"])
-
-    # B. Limpa as definições usadas no config geral
-    if "definitions" in clean_conf:
-        defs = clean_conf["definitions"]
-        
-        # Procura em 'environments' (plural)
-        if "environments" in defs:
-            for env_name, env_data in defs["environments"].items():
-                defs["environments"][env_name] = _clean_env_dict(env_data)
-        
-        # Procura em 'environment' (legacy)
-        if "environment" in defs:
-            defs["environment"] = _clean_env_dict(defs["environment"])
-            
-        # Procura ambientes soltos na raiz de definitions
-        for key, val in defs.items():
-            if isinstance(val, dict) and "spec_templates" in val:
-                defs[key] = _clean_env_dict(val)
-
-    return clean_conf
-
 def validate_config_rules(config: Dict[str, Any]):
     """
     Verifica inconsistências lógicas e perigosas na configuração.
@@ -432,7 +374,7 @@ def validate_config_rules(config: Dict[str, Any]):
     agent_type = agent_meta["type"]
     env_name = env_conf["name"]
     
-    use_res = env_conf.get("use_reservoir", False) or agent_type == "esn"
+    use_res = config.get(agent_type, {}).get("use_reservoir", False)
     freeze = train_conf.get("freeze", True)
 
     # Regra 1: DQN/PPO devem congelar na validação
@@ -468,7 +410,7 @@ def validate_config_rules(config: Dict[str, Any]):
             
     # Regra 5: Reservatório substitui encoders no AHAH.
     if use_res:
-        actual_agent = config.get("definitions", {}).get("agents", {}).get("esn", {}).get("standard_model", "PPO") if agent_type == "esn" else agent_type
+        actual_agent = config.get("definitions", {}).get("agents", {}).get("ESN", {}).get("standard_model", "PPO") if agent_type == "ESN" else agent_type
         if actual_agent == "AHAH":
             ahah_conf = config.get("AHAH", config.get("definitions", {}).get("agents", {}).get("AHAH", {}))
             if ahah_conf.get("use_temporal_encoder", False):

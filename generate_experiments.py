@@ -14,55 +14,55 @@ with open("config.json", "r", encoding="utf-8") as f:
 
 # --- A LISTA DE GRADES DE TESTE INTELIGENTE ---
 grades_de_teste = [
-    # # GRADE 1: Baselines
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH","Random","PPO", "DQN"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],            
-    #     "temporal": [False],      
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]   
-    # },
-    # # GRADE 2: AHAH Ablation (Testando Bias e Encoders contra o AHAH Base)
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["A", "C"],       
-    #     "temporal": [False],
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]
-    # },
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [False]      
-    # },
-    # # GRADE 3: O Teste de Inércia do AHAH (Temporal Encoder)
-    # {
-    #     "env": ["CartPole"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],
-    #     "temporal": [True],
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]
-    # },
-    # # GRADE 4: BipedalWalker
-    # {
-    #     "env": ["BipedalWalker"],
-    #     "agent": ["Random","PPO", "DQN", "AHAH"],
-    #     "mode": ["episodic"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]
-    # }
+    # GRADE 1: Baselines
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH","Random","PPO", "DQN"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],            
+        "temporal": [False],      
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]   
+    },
+    # GRADE 2: AHAH Ablation (Testando Bias e Encoders contra o AHAH Base)
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["A", "C"],       
+        "temporal": [False],
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]
+    },
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [False]      
+    },
+    # GRADE 3: O Teste de Inércia do AHAH (Temporal Encoder)
+    {
+        "env": ["CartPole"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],
+        "temporal": [True],
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]
+    },
+    # GRADE 4: BipedalWalker
+    {
+        "env": ["BipedalWalker"],
+        "agent": ["Random","PPO", "DQN", "AHAH"],
+        "mode": ["episodic"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]
+    },
     # # GRADE 5: Otimização do ESN
     # {
     #     "env": ["CartPole", "Reacher2D"],
@@ -74,25 +74,25 @@ grades_de_teste = [
     #     "agent": ["ESN"],
     #     "mode": ["episodic"]
     # },
-    # GRADE 6: AHAH com Reservatório
-    {
-        "env": ["CartPole", "Reacher2D"],
-        "agent": ["AHAH"],
-        "mode": ["episodic", "continuous"],
-        "bias": ["B"],
-        "temporal": [False],
-        "encoder": ["fixed"],
-        "use_reservoir": [True]
-    },
-    {
-        "env": ["BipedalWalker"],
-        "agent": ["AHAH"],
-        "mode": ["episodic"],
-        "bias": ["B"],
-        "temporal": [False],
-        "encoder": ["fixed"],
-        "use_reservoir": [True]
-    }
+    # # GRADE 6: AHAH com Reservatório
+    # {
+    #     "env": ["CartPole", "Reacher2D"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic", "continuous"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True]
+    # },
+    # {
+    #     "env": ["BipedalWalker"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True]
+    # }
 ]
 
 contador = 0
@@ -118,7 +118,8 @@ for grade in grades_de_teste:
         
         env_dict = cfg["definitions"]["environments"][env]
 
-        env_dict["use_reservoir"] = use_res
+        if agent not in ["Random", "ESN"]:
+            cfg["definitions"]["agents"][agent]["use_reservoir"] = use_res
         
         # Duração do treino  
         if agent == "Random": cfg["training"]["episodes"] = 50
@@ -127,7 +128,7 @@ for grade in grades_de_teste:
         # Monta o nome do arquivo dinamicamente
         nome_partes = [env, agent, mode[:4]]
 
-        if use_res:
+        if use_res and agent != "ESN":
             nome_partes.append("Res")
         
         # --- APLICAÇÃO ESPECÍFICA DO AHAH ---

@@ -45,7 +45,7 @@ def get_random_params(agent_type: str, base_config: Dict[str, Any]) -> Dict[str,
     agent_conf = base_config[agent_type]
 
     params = {}
-    use_res = base_config.get("environment", {}).get("use_reservoir", False)
+    use_res = base_config.get(agent_type, {}).get("use_reservoir", False)
 
     if agent_type == "ESN":
         params = {
@@ -187,7 +187,7 @@ def run_single_seed(config: Dict[str, Any], episodes_to_run: int, seed: int) -> 
 
     arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
-    use_res = config["environment"].get("use_reservoir", False) or agent_type == "ESN"
+    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "ESN"
     if use_res and isinstance(arch_info, dict) and arch_info:
         orig_in = config["environment"].get("orig_input_dim", "?")
         res_size = arch_info.get("input_dim", "?") 
@@ -358,8 +358,9 @@ def main():
 
      # --- INJEÇÃO DE DEPENDÊNCIAS (TRANSFER HPO) ---
     is_esn = (agent_type == "ESN")
-    use_res = base_config.get("environment", {}).get("use_reservoir", False) or is_esn
+    use_res = base_config.get(agent_type, {}).get("use_reservoir", False) or is_esn
     target_dependency = None
+    hpo_injection = None
 
     if is_esn:
         # Tuning do ESN busca a otimização do PPO (Readout)
@@ -385,22 +386,21 @@ def main():
                 if "definitions" in delta_dep and "agents" in delta_dep["definitions"]:
                     if target_dependency in delta_dep["definitions"]["agents"]:
                         dep_params = delta_dep["definitions"]["agents"][target_dependency]
-                        # Cria um dicionário filtro para não puxar lixo acidental do arquivo delta
-                        filtro_injecao = {
+                        hpo_injection = {
                             "definitions": {
                                 "agents": {
                                     target_dependency: dep_params
                                 }
                             }
                         }
-                        base_config = utils.recursive_update(base_config, filtro_injecao)
+                        base_config = utils.recursive_update(base_config, hpo_injection)
 
                         # Se o load_config já puxou o agente para a raiz, atualiza a raiz também
                         if target_dependency in base_config:
                             base_config[target_dependency].update(dep_params)
 
                         # Regenera a lista de sensores se o reservatório mudar
-                        if target_dependency == "ESN" and "reservoir_size" in dep_params:
+                        if target_dependency == "LSM" and "reservoir_size" in dep_params:
                             res_size = int(dep_params["reservoir_size"])
                             res_bits = 1 if agent_type == "AHAH" else 16
                             base_config["environment"]["observation_spec"] = [
@@ -520,30 +520,43 @@ def main():
 
     # 5. Geração e Salvamento do Delta
 
-    # Usa a cópia do que já está na RAM (com as dependências ESN injetadas)
-    best_config_snapshot = copy.deepcopy(base_config)
-    if agent_type in best_config_snapshot:
-        best_config_snapshot[agent_type].update(best_params)
+     # Carrega o config direto do disco rígido
+    with open("config.json", "r", encoding="utf-8") as f:
+        pure_config = json.load(f)
 
-    # Atualiza os hiperparâmetros diretamente na estrutura de definições
-    if agent_type not in best_config_snapshot.get("definitions", {}).get("agents", {}):
-        if "definitions" not in best_config_snapshot: 
-            best_config_snapshot["definitions"] = {"agents": {}}
-        best_config_snapshot["definitions"]["agents"][agent_type] = {}
+    # 1. Aplica o Transfer HPO no config
+    if hpo_injection:
+        pure_config = utils.recursive_update(pure_config, hpo_injection)
         
-    best_config_snapshot["definitions"]["agents"][agent_type].update(best_params)
+    # Remove a marcação do global_resolution se estiver usando reservatório
+    params_to_save = copy.deepcopy(best_params)
+    if use_res and "global_resolution" in params_to_save:
+        del params_to_save["global_resolution"]
+    
+    # 2. Atualiza os hiperparâmetros atuais
+    if agent_type not in pure_config.get("definitions", {}).get("agents", {}):
+        if "definitions" not in pure_config: pure_config["definitions"] = {"agents": {}}
+        pure_config["definitions"]["agents"][agent_type] = {}
+        
+    pure_config["definitions"]["agents"][agent_type].update(params_to_save)
 
-    # Limpa a explosão de sensores
-    clean_snapshot = utils.sanitize_config(best_config_snapshot)
-
-    # Injeta a resolução apenas se ela existir e não houver reservatório
+    # Injeta a resolução (bits) diretamente no spec_templates/observation_specs se for AHAH
     if "global_resolution" in best_params and not use_res:
         new_bits = best_params["global_resolution"]
-        if "observation_spec" in clean_snapshot.get("environment", {}):
-            for sensor in clean_snapshot["environment"]["observation_spec"]:
-                sensor["bits"] = new_bits
+        env_dict = pure_config.get("definitions", {}).get("environments", {}).get(env_name, {})
+        
+        # Caso Reacher2D / BipedalWalker
+        if "spec_templates" in env_dict:
+            for key, tmpl in env_dict["spec_templates"].items():
+                if isinstance(tmpl, dict) and "bits" in tmpl:
+                    tmpl["bits"] = new_bits
+        # Caso CartPole
+        elif "observation_spec" in env_dict:
+            for sensor in env_dict["observation_spec"]:
+                if isinstance(sensor, dict) and "bits" in sensor:
+                    sensor["bits"] = new_bits
 
-
+    # 3. Arquivo final
     delta_file = {
         "_metadata": {
             "timestamp": timestamp,
@@ -551,17 +564,20 @@ def main():
             "note": "Use apply_delta.py para injetar esses dados no config.json"
         },
         "selection": {"agent": agent_type, "environment": env_name},
-        "training": clean_snapshot.get("training", {}),
+        "training": pure_config.get("training", {}),
         "definitions": {
             "agents": {
-                agent_type: clean_snapshot.get("definitions", {}).get("agents", {}).get(agent_type, {})
+                agent_type: pure_config.get("definitions", {}).get("agents", {}).get(agent_type, {})
             },
             "environments": {
-                # O sanitize_config reprojeta os dados em forma de template.
-                env_name: clean_snapshot.get("environment", {})
+                env_name: pure_config.get("definitions", {}).get("environments", {}).get(env_name, {})
             }
         }
     }
+
+    # Garante que a dependência do HPO entre no arquivo Delta
+    if target_dependency:
+        delta_file["definitions"]["agents"][target_dependency] = pure_config.get("definitions", {}).get("agents", {}).get(target_dependency, {})
 
     delta_path = os.path.join(tuning_dir, "best_params_delta.json")
     with open(delta_path, "w", encoding="utf-8") as f:

@@ -204,80 +204,43 @@ def evaluate(result_dir: str):
     agent = None
 
     # 3. Execução
-    if learning_mode == "continuous":
-        # --- MODO CONTÍNUO ---
-        # Fase 1: Estatística (Paralela)
-        # Rodamos várias sessões em paralelo para ter uma média robusta de desempenho
-        print(f"Rodando {N_WORKERS} sessões em paralelo...", flush=True)
-        
-        # Gerador de seeds robusto
-        ss = SeedSequence(int(time.time()))
-        child_seeds = ss.generate_state(N_WORKERS)
-        
-        results = Parallel(n_jobs=N_WORKERS, backend="loky")(
-            delayed(run_eval_session)(config, agent_type, model_path, res_load_path, 1, int(child_seeds[i]))
-            for i in range(N_WORKERS)
-        )
-        
-        # Consolida resultados
-        for res in results:
-            if res and "scores" in res:
-                total_scores.extend(res["scores"])
-                total_success.extend(res["success"])
-                total_lengths.extend(res["lengths"])
-            
-        # Fase 2: Vídeo
-        print("Gerando vídeo de demonstração...", flush=True)
-        
-        # Cria ambiente local com wrapper de gravação
-        env_vid = make_env(config, reservoir_load_path=res_load_path) 
-        env_vid = RecordVideo(env_vid, video_folder, episode_trigger=lambda x: True, name_prefix="eval_cont")
-        
-        # Carrega agente localmente (não via worker)
-        agent_vid = create_agent(config, env=env_vid, model_path=model_path, is_eval=True)
-        
-        if agent_vid:
-            # Roda loop local com limite forçado de passos
-            # 3 episódios para maior variabilide
-            _run_local_loop(env_vid, agent_vid, 3, freeze=freeze, video_limit=2000)
-        
-        env_vid.close()
 
-    else:
-        # --- MODO EPISÓDICO ---
+    # Fase 1: Estatística 
+    # Rodamos várias sessões em paralelo para ter uma média robusta de desempenho
+    print(f"Rodando {N_WORKERS} sessões em paralelo...", flush=True)
+    
+    # Gerador de seeds robusto
+    ss = SeedSequence(int(time.time()))
+    child_seeds = ss.generate_state(N_WORKERS)
+    
+    results = Parallel(n_jobs=N_WORKERS, backend="loky")(
+        delayed(run_eval_session)(config, agent_type, model_path, res_load_path, 1, int(child_seeds[i]))
+        for i in range(N_WORKERS)
+    )
+    
+    # Consolida resultados
+    for res in results:
+        if res and "scores" in res:
+            total_scores.extend(res["scores"])
+            total_success.extend(res["success"])
+            total_lengths.extend(res["lengths"])
         
-        n_video = 5
-        n_silent = max(0, eval_episodes - n_video)
-        
-        # Carrega agente uma vez para reutilizar
-        env_silent = make_env(config, reservoir_load_path=res_load_path)
-        agent = create_agent(config, env=env_silent, model_path=model_path, is_eval=True)        
-        
-        if agent:
-            # Seed única base
-            base_seed = int(SeedSequence(int(time.time())).generate_state(1)[0])
-            # Fase 1: Rápida (Silent)
-            if n_silent > 0:
-                print(f"Rodando {n_silent} episódios rápidos...", flush=True)
-                rets, raw, succ, lens = _run_local_loop(env_silent, agent, n_silent, seed_start=base_seed)
-                total_scores.extend(rets)
-                total_success.extend(succ)
-                total_lengths.extend(lens)
-            env_silent.close()
-                
-            # Fase 2: Vídeo (Com RecordVideo)
-            print(f"Rodando {n_video} episódios com vídeo...", flush=True)
-            env_vid = make_env(config, reservoir_load_path=res_load_path)
-            env_vid = RecordVideo(env_vid, video_folder, episode_trigger=lambda x: True, name_prefix="eval_ep")
-            rets, raw, succ, lens = _run_local_loop(env_vid, agent, n_video, freeze=freeze, video_limit=2000)
-            total_scores.extend(rets)
-            total_success.extend(succ)
-            total_lengths.extend(lens)
-            env_vid.close()
-        else:
-            env_silent.close()
-            print(f"[ERRO] Falha ao carregar agente {agent_type} em {model_path}")
-            return 
+    # Fase 2: Vídeo
+    print("Gerando vídeo de demonstração...", flush=True)
+    
+    # Cria ambiente local com wrapper de gravação
+    env_vid = make_env(config, reservoir_load_path=res_load_path) 
+    env_vid = RecordVideo(env_vid, video_folder, episode_trigger=lambda x: True, name_prefix="eval_cont")
+    
+    # Carrega agente localmente (não via worker)
+    agent_vid = create_agent(config, env=env_vid, model_path=model_path, is_eval=True)
+    
+    if agent_vid:
+        # Roda loop local com limite forçado de passos
+        n_video = 3 if learning_mode == "continuous" else 6
+        _run_local_loop(env_vid, agent_vid, n_video, freeze=freeze, video_limit=2000)
+    
+    env_vid.close()
 
     # 4. Cálculo de Métricas Finais
     total_duration = time.time() - start_time
@@ -308,7 +271,7 @@ def evaluate(result_dir: str):
     elif learning_mode == "episodic" and agent:
         arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
 
-    use_res = config["environment"].get("use_reservoir", False) or agent_type == "ESN"
+    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "ESN"
     if use_res and isinstance(arch_info, dict) and arch_info:
         orig_in = config["environment"].get("orig_input_dim", "?")
         res_size = arch_info.get("input_dim", "?") 

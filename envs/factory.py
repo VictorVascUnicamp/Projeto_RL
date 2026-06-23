@@ -83,7 +83,7 @@ def make_env(config: Dict[str, Any], reservoir_load_path: Optional[str] = None) 
 
     agent_type = config["agent"]["type"]
     is_esn = agent_type == "ESN"
-    use_res = env_conf.get("use_reservoir", False) or is_esn
+    use_res = config.get(agent_type, {}).get("use_reservoir", False) or is_esn
     
     if use_res:
         from envs.wrappers import ReservoirWrapper
