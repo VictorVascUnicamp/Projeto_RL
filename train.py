@@ -403,39 +403,60 @@ def main():
     full_history = [r["metrics"] for r in valid_results]
     utils.save_stats(os.path.join(results_dir, "train_history_full.json"), {"sessions": full_history})
     
-    # --- 4. GRÁFICOS (Baseados na melhor sessão) ---
-    metrics = best_res["metrics"]
-    graphic_scores = metrics.get("window_scores",[])
-    ma_val = int(train_conf.get("ma_value", 20))
+    # --- 4. GRÁFICOS ---
+    ma_val = int(train_conf.get("ma_value", 50))
+    early_limit = 100 # Para o aprendizado rápido do AHAH
     
     # Recalcula o intervalo de salvamento para o texto do eixo X
-    max_steps_env = int(config["environment"]["max_steps"])
+    max_steps_env = int(config["environment"].get("max_steps", 500))
     save_freq = train_conf.get("save_frequency", 50)
     save_interval_steps = max(100, int(max_steps_env / save_freq))
-    
     eixo_x_nome = f"Passos (x{save_interval_steps})" if learning_mode == "continuous" else "Episódios"
     
-    # 4.1 Gráfico do Retorno Bruto (Raw Reward)
-    if len(graphic_scores) > 0:
-        # Cria uma janela para o raw reward
-        win_score = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(graphic_scores) // ma_val)
+    # Extrai as curvas de todas as sessões em listas conjuntas
+    all_scores_curves = []
+    all_success_curves = []
+    
+    for r in valid_results:
+        mets = r["metrics"]
+        s_curve = mets.get("window_scores") if len(mets.get("window_scores", [])) > 0 else mets.get("ep_scores", [])
+        succ_curve = mets.get("success", [])
         
+        if len(s_curve) > 0: all_scores_curves.append(s_curve)
+        if len(succ_curve) > 0: all_success_curves.append(succ_curve)
+
+    if len(all_scores_curves) > 0 and len(all_scores_curves[0]) > 0:
+        # 4.1 Gráfico Macro de Scores
+        win_score = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(all_scores_curves[0]) // ma_val)
         utils.plot_learning_curve(
-            graphic_scores, 
+            all_scores_curves, 
             os.path.join(results_dir, "curve_scores.png"), 
             window=win_score, 
             title="Curva de Scores",
             x_label=eixo_x_nome
         )
-
-    # 4.2 Gráfico da Métrica Discreta (Sucessos)
-    if "success" in metrics and len(metrics["success"]) > 0:
-        # Calcula a janela especificamente para os sucessos
-        win_succ_base = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(metrics["success"]) // ma_val)
-        win_succ = max(1, win_succ_base // 2)  # Janela um pouco menor para ver patamares nítidos
         
+        # 4.2 Gráfico Micro (Early Scores) - O Foco Inicial
+        early_scores = [s[:early_limit] for s in all_scores_curves]
+        if len(early_scores[0]) > 0:
+            win_early = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(early_scores[0]) // ma_val)
+            # Trava de segurança para modo 'constant' não engolir o gráfico curto
+            win_early = min(win_early, max(1, len(early_scores[0]) // 2))
+            
+            utils.plot_learning_curve(
+                early_scores, 
+                os.path.join(results_dir, "curve_early_scores.png"), 
+                window=win_early, 
+                title="Curva de Scores (Fase Inicial)",
+                x_label=eixo_x_nome
+            )
+
+    # 4.3 Gráfico de Sucessos
+    if len(all_success_curves) > 0 and len(all_success_curves[0]) > 0:
+        win_succ_base = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(all_success_curves[0]) // ma_val)
+        win_succ = max(1, win_succ_base // 2)
         utils.plot_learning_curve(
-            metrics["success"], 
+            all_success_curves, 
             os.path.join(results_dir, "curve_success.png"), 
             window=win_succ, 
             title="Curva de Sucessos",

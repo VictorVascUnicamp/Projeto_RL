@@ -169,48 +169,82 @@ def create_agent(config: Dict[str, Any], env=None, model_path: Optional[str] = N
         
     return agent
 
-def plot_learning_curve(data: List[float],
+def plot_learning_curve(data_list: List[List[float]],
                         save_path: str,
                         window: int = 50,
                         title: str = "Curva de Aprendizado",
                         x_label: str = "Episódio"):
     """
-    Plota dados com downsampling inteligente se for muito longo.
+    Plota as curvas de aprendizado (Média Móvel + Desvio Padrão) de múltiplas sessões.
+    Remove os dados brutos para visualização limpa.
     """
+    
     plt.figure(figsize=(10, 6))
     
-    # Se tivermos mais de 2000 pontos, reduz para visualização
-    if len(data) > 2000:
-        factor = len(data) // 1000
-        # Reduz pela média de cada bloco
-        reduced_data = np.mean(np.array(data[:len(data)//factor*factor]).reshape(-1, factor), axis=1)
-        # Ajusta window para a nova escala
-        window = max(1, window // factor)
-        
-        plt.plot(reduced_data, alpha=0.3, color='blue', label=f'Média (Blocos de {factor})', linewidth=1)
-        
-        if len(reduced_data) >= window:
-            moving_avg = np.convolve(reduced_data, np.ones(window)/window, mode='valid')
-            x_axis = range(window - 1, len(reduced_data))
-            plt.plot(x_axis, moving_avg, color='red', linewidth=2, label=f'Média Móvel ({window})')
+    # Prevenção contra listas vazias
+    if not data_list or len(data_list) == 0 or len(data_list[0]) == 0:
+        raise ValueError("[ERRO FATAL] Tentativa de plotar gráfico sem dados. A lista de métricas está vazia.")
+
+    min_length = min([len(session) for session in data_list])
+    if min_length == 0:
+        raise ValueError("[ERRO FATAL] Pelo menos uma das sessões retornou zero passos gravados.")
+
+    # Se tivermos mais de 2000 pontos, fazemos um downsampling na matriz toda para o gráfico não pesar
+    if min_length > 2000:
+        factor = min_length // 1000
+        new_sessions = []
+        for session in data_list:
+            arr = np.array(session[:min_length])
+            # Corta o final para ser perfeitamente divisível
+            arr = arr[:(min_length // factor) * factor]
+            reduced_arr = np.mean(arr.reshape(-1, factor), axis=1)
+            new_sessions.append(reduced_arr)
             
-        plt.xlabel(f"{x_label} (x{factor})")
-        
+        data_matrix = np.array(new_sessions)
+        eff_window = max(1, window // factor)
+        x_label = f"{x_label} (x{factor})"
     else:
-        # Plot normal
-        plt.plot(data, alpha=0.3, color='blue', label='Valor', linewidth=1)
-        if len(data) >= window and window > 1:
-            moving_avg = np.convolve(data, np.ones(window)/window, mode='valid')
-            x_axis = range(window - 1, len(data))
-            plt.plot(x_axis, moving_avg, color='red', linewidth=2, label=f'Média Móvel ({window})')
-        plt.xlabel(x_label)
+        data_matrix = np.array([session[:min_length] for session in data_list])
+        eff_window = max(1, window)
+
+    # Aplica a Média Móvel com Janela Expansiva
+    smoothed_sessions = []
+    for row in data_matrix:
+        if eff_window > 1:
+            cumsum = np.cumsum(row)
+            smoothed = np.zeros_like(row, dtype=float)
+            
+            # Para os primeiros pontos, a média cresce dinamicamente
+            smoothed[:eff_window] = cumsum[:eff_window] / np.arange(1, eff_window + 1)
+            
+            # Para o restante da curva, aplica a janela móvel padrão
+            if len(row) > eff_window:
+                smoothed[eff_window:] = (cumsum[eff_window:] - cumsum[:-eff_window]) / eff_window
+        else:
+            smoothed = row
+            
+        smoothed_sessions.append(smoothed)
+        
+    smoothed_matrix = np.array(smoothed_sessions)
+
+    # Calcula Média e Desvio Padrão através das curvas já suavizadas
+    mean_curve = np.mean(smoothed_matrix, axis=0)
+    std_curve = np.std(smoothed_matrix, axis=0)
+
+    x_axis = np.arange(len(mean_curve))
+
+    # Plota a Linha Sólida Principal e a Sombra de Variância
+    plt.plot(x_axis, mean_curve, color='red', linewidth=2, label=f'Média Móvel ({window})')
+    plt.fill_between(x_axis, mean_curve - std_curve, mean_curve + std_curve, color='red', alpha=0.2, label='Desvio Padrão')
 
     plt.ylabel("Valor")
+    plt.xlabel(x_label)
     plt.title(title)
     plt.legend()
     plt.grid(True, alpha=0.3, linestyle='--')
     plt.tight_layout()
     plt.savefig(save_path, dpi=100)
+
     plt.close()
 
 def recursive_update(d: Dict[str, Any], u: Dict[str, Any]) -> Dict[str, Any]:

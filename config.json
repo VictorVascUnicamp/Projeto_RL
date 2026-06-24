@@ -20,7 +20,7 @@
     "save_frequency": 50,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
     "ma_mode": "dynamic",
-    "ma_value": 20
+    "ma_value": 50
   },
   "definitions": {
     "agents": {
