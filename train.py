@@ -4,7 +4,6 @@
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:pkg_resources"
 
-import os
 import json
 import time
 import numpy as np
@@ -51,6 +50,11 @@ def train_session(
     # Restringe bibliotecas numéricas a 1 thread por processo. Necessario para o joblib.
     import torch
     torch.set_num_threads(1)
+
+    # Força o clone paralelo a ignorar avisos antes de instanciar o ambiente
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
+    warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
     
     # 1. Configuração do Ambiente e Seeds
     try:

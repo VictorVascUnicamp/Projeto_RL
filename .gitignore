@@ -3,6 +3,9 @@ __pycache__/
 results/
 old_results/
 test_configs/
+temp_trials/
+experimentos_concluidos.txt
+experimentos_falhos.txt
 *.mp4
 *.pth
 *.npz

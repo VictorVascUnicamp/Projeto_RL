@@ -2,12 +2,12 @@
   "_README": "Este arquivo controla todos os parametros. Chaves com _ são apenas comentários.",
   "selection": {
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
-    "agent": "AHAH",
+    "agent": "PPO",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "Reacher2D"
+    "environment": "BipedalWalker"
   },
   "training": {
-    "episodes": 1000,
+    "episodes": 5000,
     "_reduction_factor_help": "Divide episódios (ou passos) por este valor durante o tuning e validação.",
     "reduction_factor": 5,
     "_learning_mode_options": "'episodic' ou 'continuous'.",
@@ -15,7 +15,7 @@
     "_target_count_help": "Se continuous, quantos alvos antes de terminar o episódio. Se episodic, critério de parada.",
     "target_count": 100,
     "_freeze_help": "Se true, não aprende na validação. Se false, continua aprendendo.",
-    "freeze": false,
+    "freeze": true,
     "render": false,
     "save_frequency": 50,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
@@ -51,7 +51,8 @@
         "_temporal_encoder_desc": "Encoder temporal da memória de curto prazo para o AHAH",
         "use_temporal_encoder": false,
         "temporal_memory": 7,
-        "policy": "greedy"
+        "policy": "greedy",
+        "global_resolution": 8
       },
       "DQN": {
         "_desc": "Modelo tradicional de RL",

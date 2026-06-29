@@ -4,7 +4,6 @@
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:pkg_resources"
 
-import os
 import json
 import time
 import numpy as np
@@ -83,6 +82,11 @@ def run_eval_session(config: Dict, agent_type: str, model_path: str, res_path: s
     # Trava threads numéricas internas para evitar conflito com o paralelismo de processos
     import torch
     torch.set_num_threads(1)
+
+    # Força o clone paralelo a ignorar avisos antes de instanciar o ambiente
+    import warnings
+    warnings.filterwarnings("ignore", category=UserWarning, module="pkg_resources")
+    warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
     
     try:
         # 1. Cria Ambiente

@@ -83,7 +83,11 @@ class ActorCritic(nn.Module):
             entropy = torch.stack([probs.entropy() for probs in probs_list], dim=1).sum(1)
         elif self.action_type == "analog_muscle":
             action_mean = self.actor_mean(hidden)
-            action_logstd = self.actor_logstd.expand_as(action_mean)
+            
+            # [CORREÇÃO DE ESTABILIDADE FÍSICA] Evita que a variância convirja para 0 ou Infinito.
+            # -20 evita divisão por zero; 2 evita explosão numérica.
+            clamped_logstd = torch.clamp(self.actor_logstd, min=-20.0, max=2.0)
+            action_logstd = clamped_logstd.expand_as(action_mean)
             action_std = torch.exp(action_logstd)
             
             probs = Normal(action_mean, action_std)

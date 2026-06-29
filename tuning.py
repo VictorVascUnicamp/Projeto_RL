@@ -5,7 +5,6 @@
 import os
 os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:pkg_resources"
 
-import os
 import sys
 import json
 import copy
