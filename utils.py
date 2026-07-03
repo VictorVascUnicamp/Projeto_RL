@@ -386,7 +386,7 @@ def load_config(path: str = "config.json") -> Dict[str, Any]:
             {"name": f"res_{i}", "type": "linear", "min": -1.0, "max": 1.0, "bits": res_bits}
             for i in range(res_size)
         ]
-        # Remove os templates originais para o sanitize_config não poluir o JSON
+        # Remove os templates originais para não poluir o JSON
         target_env_def.pop("spec_templates", None)
 
     # Finalização

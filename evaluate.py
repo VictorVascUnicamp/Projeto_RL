@@ -218,7 +218,7 @@ def evaluate(result_dir: str):
     child_seeds = ss.generate_state(N_WORKERS)
     
     results = Parallel(n_jobs=N_WORKERS, backend="loky")(
-        delayed(run_eval_session)(config, agent_type, model_path, res_load_path, 1, int(child_seeds[i]))
+        delayed(run_eval_session)(config, agent_type, model_path, res_load_path, eval_episodes, int(child_seeds[i]))
         for i in range(N_WORKERS)
     )
     
@@ -248,39 +248,38 @@ def evaluate(result_dir: str):
 
     # 4. Cálculo de Métricas Finais
     total_duration = time.time() - start_time
-    total_steps = sum(total_lengths)
-    eval_steps = int(np.mean(total_lengths)) if total_lengths else 0
-    fps = total_steps / (total_duration + 1e-9)
+    total_steps_hardware = sum(total_lengths)
+    fps = total_steps_hardware / (total_duration + 1e-9)
+    
+    # Filtra os workers que retornaram dados com sucesso
+    valid_results = [r for r in results if r]
+    n_sessions = len(valid_results)
+    
+    # Agregação estatística por SESSÃO
     if learning_mode == "continuous":
-        n_sessions = len(total_scores) if total_scores else 1
-        eps_per_session = 1
+        # No contínuo, a vitória é o último valor acumulado de sucesso no único episódio longo
+        success_per_worker = [r["success"][-1] for r in valid_results if "success" in r and r["success"]]
     else:
-        n_sessions = 1
-        eps_per_session = len(total_scores)
+        # No episódico, a vitória é a soma dos sucessos dentro dos 50 episódios rodados
+        success_per_worker = [sum(r["success"]) for r in valid_results if "success" in r]
 
-    # Separação de métricas de sucesso baseada no modo de aprendizado
-    if learning_mode == "continuous":
-        # total_success contém a soma de alvos por sessão paralela. 
-        mean_success = float(np.mean(total_success)) if total_success else 0.0
-        max_success = float(np.max(total_success)) if total_success else 0.0
-    else:
-        # Modo Episódico: Ambas as métricas representam o somatório total
-        total_eval_successes = float(sum(total_success)) if total_success else 0.0
-        mean_success = total_eval_successes
-        max_success = total_eval_successes
+    # Média e Desvio Padrão por Sessão de 50 episódios (ou 1 longo)
+    mean_success = float(np.mean(success_per_worker)) if success_per_worker else 0.0
+    std_success = float(np.std(success_per_worker)) if success_per_worker else 0.0
+    
+    # Média do score de cada worker para garantir uma métrica macro justa
+    scores_per_worker = [np.mean(r["scores"]) for r in valid_results if "scores" in r]
+    mean_score_global = float(np.mean(scores_per_worker)) if scores_per_worker else 0.0
+    std_score_global = float(np.std(scores_per_worker)) if scores_per_worker else 0.0
 
-    arch_info = {}
-    if learning_mode == "continuous" and agent_vid:
-        arch_info = agent_vid.get_architecture_info() if agent_type != "Random" else {}
-    elif learning_mode == "episodic" and agent:
-        arch_info = agent.get_architecture_info() if agent_type != "Random" else {}
-
-    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "ESN"
+    # Usa o agente criado para o vídeo para extrair a arquitetura real do modelo avaliado
+    arch_info = agent_vid.get_architecture_info() if agent_vid and agent_type != "Random" else {}
+    
+    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "LSM"
     if use_res and isinstance(arch_info, dict) and arch_info:
         orig_in = config["environment"].get("orig_input_dim", "?")
         res_size = arch_info.get("input_dim", "?") 
         out_dim = arch_info.get("output_dim", arch_info.get("output_fibers", "?"))
-        
         arch_info["architecture"] = f"({orig_in} -> Reservoir[{res_size}] -> {out_dim})"
 
     final_stats = {
@@ -289,14 +288,14 @@ def evaluate(result_dir: str):
         "architecture_info": arch_info,
         "mode": learning_mode,
         "sessions_run": n_sessions, 
+        "episodes_per_session": eval_episodes, 
         "total_duration": round(total_duration, 2),
         "inference_fps": round(fps, 2),
-        "total_episodes": eps_per_session,
-        "mean_steps": eval_steps, 
-        "mean_score": float(np.mean(total_scores)) if total_scores else 0.0,
-        "max_score": float(np.max(total_scores)) if total_scores else 0.0,
+        "mean_steps_per_episode": float(np.mean(total_lengths)) if total_lengths else 0.0, 
+        "mean_score_global": mean_score_global,
+        "max_score_global": std_score_global,
         "mean_success": mean_success,
-        "max_success": max_success
+        "max_success": std_success
     }
     
     # Salva JSON limpo

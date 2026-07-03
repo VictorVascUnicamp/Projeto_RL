@@ -399,7 +399,7 @@ def main():
                             base_config[target_dependency].update(dep_params)
 
                         # Regenera a lista de sensores se o reservatório mudar
-                        if target_dependency == "LSM" and "reservoir_size" in dep_params:
+                        if target_dependency == "ESN" and "reservoir_size" in dep_params:
                             res_size = int(dep_params["reservoir_size"])
                             res_bits = 1 if agent_type == "AHAH" else 16
                             base_config["environment"]["observation_spec"] = [

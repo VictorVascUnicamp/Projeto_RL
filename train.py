@@ -184,9 +184,9 @@ def train_session(
             # --- [NOVO] RASTREAMENTO DO MELHOR MODELO & PARADA PRECOCE ---
             if agent_type != "Random":
                 # Calcula a média móvel com base nos retornos episódicos reais
-                window = min(len(session_metrics["ep_score"]), ma_val)
+                window = min(len(session_metrics["ep_scores"]), ma_val)
                 if window > 0:
-                    current_ma = np.mean(session_metrics["ep_score"][-window:])
+                    current_ma = np.mean(session_metrics["ep_scores"][-window:])
                     
                     # Salva os pesos na RAM se bater o recorde histórico
                     if current_ma > best_ma_score:
@@ -199,7 +199,7 @@ def train_session(
                         # Verifica se temos episódios suficientes + 1 para subtrair com segurança
                         if len(session_metrics["success"]) >= window_x+1:
                             # Calcula as vitórias conquistadas dentro da janela móvel
-                            success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x+1)]
+                            success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x + 1)]
                             if success_in_window >= target_count:
                                 print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo de performance atingido ({success_in_window} sucessos nos últimos {window_x} episódios)." 
                                     f"Parando o treino no episódio {ep+1}!", flush=True)
@@ -344,45 +344,28 @@ def main():
     if best_res.get("reservoir_state"):
         np.savez(os.path.join(results_dir, "reservoir.npz"), **best_res["reservoir_state"])
     
-    # Calcula Estatísticas Globais
-    best_metrics = best_res["metrics"]
-    best_scores = best_metrics.get("ep_scores", [])  
-    best_successes = best_metrics.get("success",[])
-    best_lengths = best_metrics.get("lengths",[])
-    
-    # FPS Global (Esse precisa usar o tempo de parede total e a soma de todos os passos de todas as sessões para medir eficiência de hardware)
+    # 4. Estatísticas Globais
+
+    # Estatísticas Globais de Hardware
     total_steps_hardware = sum([sum(r["metrics"].get("lengths",[])) for r in valid_results])
     fps_global = total_steps_hardware / (global_total_time + 1e-9)
-
     arch_info = best_res.get("arch_info", {})
 
-    # Lógica de Separação de Métricas (Contínuo vs Episódico)
-    if learning_mode == "continuous":
-        # Extrai listas de 1 elemento de todas as sessões
-        all_scores = [r["metrics"]["ep_scores"][0] for r in valid_results if r["metrics"].get("ep_scores")]
-        all_successes = [r["metrics"]["success"][-1] for r in valid_results if r["metrics"].get("success")]
-        all_lengths = [r["metrics"]["lengths"][0] for r in valid_results if r["metrics"].get("lengths")]
-        
-        mean_score = float(np.mean(all_scores)) if all_scores else 0.0
-        max_score = float(best_metrics["ep_scores"][0]) if best_metrics.get("ep_scores") else 0.0
-        
-        mean_success = float(np.mean(all_successes)) if all_successes else 0.0
-        max_success = float(best_metrics["success"][-1]) if best_metrics.get("success") else 0.0
-        
-        mean_steps = int(np.mean(all_lengths)) if all_lengths else 0
-        min_steps = int(best_metrics["lengths"][0]) if best_metrics.get("lengths") else 0
-    else:
-        # Modo episódico focado na melhor sessão
-        mean_score = float(np.mean(best_scores)) if best_scores else 0.0
-        max_score = float(np.max(best_scores)) if best_scores else 0.0
-        
-        # No episódico, o sucesso é o acúmulo total
-        total_succ = int(best_successes[-1]) if best_successes else 0
-        mean_success = total_succ
-        max_success = total_succ
-        
-        mean_steps = int(np.mean(best_lengths)) if best_lengths else 0
-        min_steps = mean_steps
+    # Coleta dos dados das sessões
+    all_scores = [np.mean(r["metrics"]["ep_scores"]) for r in valid_results if r["metrics"].get("ep_scores")]
+    all_lengths = [np.mean(r["metrics"]["lengths"]) for r in valid_results if r["metrics"].get("lengths")]
+    all_successes = [r["metrics"]["success"][-1] for r in valid_results if r["metrics"].get("success")]
+
+    # Média transversal das 6 sessões 
+    mean_score_global = float(np.mean(all_scores)) if all_scores else 0.0
+    mean_success_global = float(np.mean(all_successes)) if all_successes else 0.0
+    mean_steps_global = float(np.mean(all_lengths)) if all_lengths else 0.0
+
+    # Desempenho exato da sessão cujo modelo foi salvo no disco
+    best_idx = valid_results.index(best_res)
+    best_session_score = float(all_scores[best_idx]) if all_scores else 0.0
+    best_session_success = float(all_successes[best_idx]) if all_successes else 0.0
+    best_session_steps = float(all_lengths[best_idx]) if all_lengths else 0.0
 
     final_stats = {
         "agent": agent_type,
@@ -392,13 +375,13 @@ def main():
         "sessions_run": len(valid_results),
         "total_duration": round(global_total_time, 2), 
         "fps_global": round(fps_global, 2),
-        "total_episodes": len(best_lengths),
-        "mean_steps": mean_steps, 
-        "min_steps": min_steps, 
-        "mean_score": mean_score, 
-        "max_score": max_score, 
-        "mean_success": mean_success,
-        "max_success": max_success
+        "total_episodes": len(best_res["metrics"].get("lengths", [])),
+        "mean_steps_global": mean_steps_global, 
+        "best_session_steps": best_session_steps, 
+        "mean_score_global": mean_score_global, 
+        "best_session_score": best_session_score, 
+        "mean_success_global": mean_success_global,
+        "best_session_success": best_session_success
     }
 
     utils.save_stats(os.path.join(results_dir, "train_stats.json"), final_stats)
@@ -409,7 +392,6 @@ def main():
     
     # --- 4. GRÁFICOS ---
     ma_val = int(train_conf.get("ma_value", 50))
-    early_limit = 100 # Para o aprendizado rápido do AHAH
     
     # Recalcula o intervalo de salvamento para o texto do eixo X
     max_steps_env = int(config["environment"].get("max_steps", 500))
@@ -430,7 +412,8 @@ def main():
         if len(succ_curve) > 0: all_success_curves.append(succ_curve)
 
     if len(all_scores_curves) > 0 and len(all_scores_curves[0]) > 0:
-        # 4.1 Gráfico Macro de Scores
+
+        # 4.1 Gráfico de Scores
         win_score = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(all_scores_curves[0]) // ma_val)
         utils.plot_learning_curve(
             all_scores_curves, 
@@ -440,7 +423,10 @@ def main():
             x_label=eixo_x_nome
         )
         
-        # 4.2 Gráfico Micro (Early Scores) - O Foco Inicial
+        # 4.2 Gráfico de Scores iniciais (Early Scores) 
+        total_points = len(all_scores_curves[0])
+        early_limit = max(10, total_points // 10) 
+
         early_scores = [s[:early_limit] for s in all_scores_curves]
         if len(early_scores[0]) > 0:
             win_early = ma_val if train_conf.get("ma_mode") == "constant" else max(1, len(early_scores[0]) // ma_val)
