@@ -245,20 +245,21 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
     train_conf = config["training"]
     factor = int(train_conf.get("reduction_factor", 5))
     learning_mode = train_conf["learning_mode"]
-
     orig_e = int(train_conf["episodes"])
-    orig_t = int(train_conf.get("target_count", 100))
 
-    # Reduções
-    config["training"]["target_count"] = max(1, orig_t // factor)
     red_ep = max(5, orig_e // factor)
     config["training"]["episodes"] = red_ep
-
+    
     if learning_mode == "continuous":
         episodes_call = 1
         # O número de passos é gerenciado pelo factory.
     else:
         episodes_call = red_ep
+
+    # Força a desativação de qualquer Early Stopping durante o Tuning
+    config["training"]["target_count"] = 99999
+    if "early_stopping_return" in config["environment"]:
+        del config["environment"]["early_stopping_return"]
 
     # 3. Execução das Seeds
     scores = []

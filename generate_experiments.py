@@ -14,35 +14,35 @@ with open("config.json", "r", encoding="utf-8") as f:
 
 # --- A LISTA DE GRADES DE TESTE INTELIGENTE ---
 grades_de_teste = [
-    # # GRADE 1: Baselines
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH","Random","PPO", "DQN"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],            
-    #     "temporal": [False],      
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]   
-    # },
-    # # GRADE 2: AHAH Ablation (Testando Bias e Encoders contra o AHAH Base)
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["A", "C"],       
-    #     "temporal": [False],
-    #     "encoder": ["adaptive"],
-    #     "use_reservoir": [False]
-    # },
-    # {
-    #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [False]      
-    # },
+    # GRADE 1: Baselines
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH","Random","PPO", "DQN"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],            
+        "temporal": [False],      
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]   
+    },
+    # GRADE 2: AHAH Ablation (Testando Bias e Encoders contra o AHAH Base)
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["A", "C"],       
+        "temporal": [False],
+        "encoder": ["adaptive"],
+        "use_reservoir": [False]
+    },
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [False]      
+    },
     # # GRADE 3: O Teste de Inércia do AHAH (Temporal Encoder)
     # {
     #     "env": ["CartPole"],
@@ -63,17 +63,17 @@ grades_de_teste = [
     #     "encoder": ["adaptive"],
     #     "use_reservoir": [False]
     # },
-    # GRADE 5: Otimização do ESN
-    {
-        "env": ["CartPole", "Reacher2D"],
-        "agent": ["ESN"],
-        "mode": ["episodic", "continuous"]
-    },
-    {
-        "env": ["BipedalWalker"],
-        "agent": ["ESN"],
-        "mode": ["episodic"]
-    },
+    # # GRADE 5: Otimização do ESN
+    # {
+    #     "env": ["CartPole", "Reacher2D"],
+    #     "agent": ["ESN"],
+    #     "mode": ["episodic", "continuous"]
+    # },
+    # {
+    #     "env": ["BipedalWalker"],
+    #     "agent": ["ESN"],
+    #     "mode": ["episodic"]
+    # },
     # # GRADE 6: AHAH com Reservatório
     # {
     #     "env": ["CartPole", "Reacher2D"],

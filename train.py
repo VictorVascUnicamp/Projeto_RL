@@ -33,7 +33,8 @@ def train_session(
     session_id: int, 
     config: Dict[str, Any], 
     seed: int, 
-    checkpoints_dir: Optional[str] = None
+    checkpoints_dir: Optional[str] = None,
+    global_stop_event: Optional[Any] = None
 ) -> Optional[Dict[str, Any]]:
     """
     Função Worker (Trabalhador).
@@ -120,6 +121,10 @@ def train_session(
     
     # 3. Loop Principal de Treinamento
     for ep in range(episodes):
+        # Se outro worker já venceu, encerra o treino.
+        if global_stop_event and global_stop_event.is_set():
+            break
+
         try:
             obs, _ = env.reset(seed=seed + ep)
             
@@ -133,6 +138,11 @@ def train_session(
             steps = 0
             
             while not done:
+                # Aborta o episódio se outro worker declarou vitória
+                if global_stop_event and global_stop_event.is_set():
+                    done = True
+                    break
+
                 action = agent.get_action(obs)
                 next_obs, reward, term, trunc, info = env.step(action)
                 done = term or trunc
@@ -149,6 +159,14 @@ def train_session(
                 # Coleta os sucessos
                 if info.get("is_success", 0) > 0:
                     success += int(info["is_success"])
+
+                    # Parada Global para o Modo Contínuo
+                    if learning_mode == "continuous" and target_count is not None:
+                        if success >= target_count:
+                            print(f"\n[Sessão {session_id}] [VITÓRIA CONTÍNUA] Alvo atingido ({success}/{target_count}).", flush=True)
+                            if global_stop_event: global_stop_event.set()
+                            done = True
+                            break
                 
                 # --- LÓGICA DO MODO CONTÍNUO ---
                 if learning_mode == "continuous":
@@ -201,9 +219,11 @@ def train_session(
                             # Calcula as vitórias conquistadas dentro da janela móvel
                             success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x + 1)]
                             if success_in_window >= target_count:
-                                print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo de performance atingido ({success_in_window} sucessos nos últimos {window_x} episódios)." 
+                                print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo atingido ({success_in_window} sucessos nos últimos {window_x} eps)." 
                                     f"Parando o treino no episódio {ep+1}!", flush=True)
-                                break  
+                                # Encerra os outros workers
+                                if global_stop_event: global_stop_event.set()
+                                break
 
             # Feedback em Tempo Real (Apenas sessão principal e modo episódico)
             if learning_mode == "episodic" and session_id == 0:
@@ -255,6 +275,7 @@ def train_session(
         "metrics": dict(session_metrics),
         "total_time": total_time,
         "model_state": final_model_state, 
+        "save_interval_steps": save_interval_steps,
         "reservoir_state": res_state,
         "arch_info": arch_info
     }
@@ -295,10 +316,14 @@ def main():
     num_sessions = N_JOBS
     print(f"--- Treino Contínuo: {num_sessions} sessões paralelas ---", flush=True)
 
+    # Cria um comunicador global para as sessões pararem juntas
+    manager = multiprocessing.Manager()
+    global_stop_event = manager.Event()
+
     # Gera N sementes filhas independentes
     child_seeds = ss.generate_state(num_sessions)
     results = Parallel(n_jobs=num_sessions, backend="loky")(
-        delayed(train_session)(i, config, int(child_seeds[i]), checkpoints_dir)
+        delayed(train_session)(i, config, int(child_seeds[i]), checkpoints_dir, global_stop_event)
         for i in range(num_sessions)
     )
 
@@ -394,9 +419,7 @@ def main():
     ma_val = int(train_conf.get("ma_value", 50))
     
     # Recalcula o intervalo de salvamento para o texto do eixo X
-    max_steps_env = int(config["environment"].get("max_steps", 500))
-    save_freq = train_conf.get("save_frequency", 50)
-    save_interval_steps = max(100, int(max_steps_env / save_freq))
+    save_interval_steps = valid_results[0].get("save_interval_steps", 100)
     eixo_x_nome = f"Passos (x{save_interval_steps})" if learning_mode == "continuous" else "Episódios"
     
     # Extrai as curvas de todas as sessões em listas conjuntas

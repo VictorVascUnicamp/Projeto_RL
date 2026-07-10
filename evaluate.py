@@ -293,9 +293,9 @@ def evaluate(result_dir: str):
         "inference_fps": round(fps, 2),
         "mean_steps_per_episode": float(np.mean(total_lengths)) if total_lengths else 0.0, 
         "mean_score_global": mean_score_global,
-        "max_score_global": std_score_global,
+        "std_score_global": std_score_global,
         "mean_success": mean_success,
-        "max_success": std_success
+        "std_success": std_success
     }
     
     # Salva JSON limpo

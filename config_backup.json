@@ -4,10 +4,10 @@
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
     "agent": "ESN",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "Reacher2D"
+    "environment": "BipedalWalker"
   },
   "training": {
-    "episodes": 1000,
+    "episodes": 5000,
     "_reduction_factor_help": "Divide episódios (ou passos) por este valor durante o tuning e validação.",
     "reduction_factor": 5,
     "_learning_mode_options": "'episodic' ou 'continuous'.",
@@ -17,7 +17,7 @@
     "_freeze_help": "Se true, não aprende na validação. Se false, continua aprendendo.",
     "freeze": true,
     "render": false,
-    "save_frequency": 50,
+    "save_frequency": 100,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
     "ma_mode": "dynamic",
     "ma_value": 50
@@ -27,10 +27,10 @@
       "ESN": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 100,
-        "spectral_radius": 0.921815093548201,
-        "leak_rate": 0.4971657330012444,
-        "sparsity": 0.19327545977625166
+        "reservoir_size": 80,
+        "spectral_radius": 1.016014266282977,
+        "leak_rate": 0.1623054036377587,
+        "sparsity": 0.19599043777819747
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
@@ -75,19 +75,19 @@
       "PPO": {
         "_desc": "Modelo avançado de RL",
         "use_reservoir": false,
-        "learning_rate": 0.0006439411525634886,
-        "gamma": 0.95,
+        "learning_rate": 1.535457601122055e-05,
+        "gamma": 0.98,
         "hidden_layers": [
-          128,
-          128
+          256,
+          256
         ],
         "update_horizon": 2048,
         "gae_lambda": 0.9,
-        "clip_coef": 0.2,
-        "ent_coef": 0.0008967361685207295,
+        "clip_coef": 0.3,
+        "ent_coef": 0.01648013717093314,
         "vf_coef": 0.5,
         "update_epochs": 10,
-        "batch_size": 128
+        "batch_size": 256
       },
       "Random": {
         "_desc": "Agente trivial, amostra uma ação do ambiente."
