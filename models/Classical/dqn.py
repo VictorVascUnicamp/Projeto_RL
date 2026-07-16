@@ -221,9 +221,18 @@ class DQNAgent(BaseAgent):
         # Erro quadrático médio
         loss = nn.MSELoss()(q_curr, target)
 
+        # Ignora retornos invalidos como NaN e Infinity.
+        if torch.isnan(loss) or torch.isinf(loss):
+            self.optimizer.zero_grad()
+            return
+
         # 5. Ajuste dos Pesos (Backpropagation)
         self.optimizer.zero_grad()
         loss.backward()
+
+        # Grampeamento de gradiente para evitar o Access Violation
+        nn.utils.clip_grad_norm_(self.q_net.parameters(), max_norm=10.0)
+
         self.optimizer.step()
         
         # 6. Sincronização Lenta da Rede Alvo

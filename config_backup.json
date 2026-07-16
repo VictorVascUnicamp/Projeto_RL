@@ -2,12 +2,12 @@
   "_README": "Este arquivo controla todos os parametros. Chaves com _ são apenas comentários.",
   "selection": {
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
-    "agent": "ESN",
+    "agent": "AHAH",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "BipedalWalker"
+    "environment": "CartPole"
   },
   "training": {
-    "episodes": 5000,
+    "episodes": 1000,
     "_reduction_factor_help": "Divide episódios (ou passos) por este valor durante o tuning e validação.",
     "reduction_factor": 5,
     "_learning_mode_options": "'episodic' ou 'continuous'.",
@@ -15,7 +15,7 @@
     "_target_count_help": "Se continuous, quantos alvos antes de terminar o episódio. Se episodic, critério de parada.",
     "target_count": 100,
     "_freeze_help": "Se true, não aprende na validação. Se false, continua aprendendo.",
-    "freeze": true,
+    "freeze": false,
     "render": false,
     "save_frequency": 100,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
@@ -27,14 +27,14 @@
       "ESN": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 80,
-        "spectral_radius": 1.016014266282977,
-        "leak_rate": 0.1623054036377587,
-        "sparsity": 0.19599043777819747
+        "reservoir_size": 100,
+        "spectral_radius": 0.8445185398853939,
+        "leak_rate": 0.17297862242236617,
+        "sparsity": 0.11127380483619147
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
-        "use_reservoir": true,
+        "use_reservoir": false,
         "fibers_per_joint": 18,
         "bias_per_node": 1,
         "_bias_mode_options": "'A' (Eq.16/ Fuctional model A), 'B' (Eq.17/F. M. B ), 'C' (Novo/Simétrico)",
@@ -46,10 +46,10 @@
         "decay": 2.2542136231020766e-05,
         "noise_std": 0.00010527506849481324,
         "_encoder_options": "'fixed' (simples) ou 'adaptive' (AHAH SAOL)",
-        "encoder_type": "fixed",
+        "encoder_type": "adaptive",
         "encoder_beta": 0.00029712827233244204,
         "_temporal_encoder_desc": "Encoder temporal da memória de curto prazo para o AHAH",
-        "use_temporal_encoder": false,
+        "use_temporal_encoder": true,
         "temporal_memory": 7,
         "policy": "greedy",
         "global_resolution": 6
@@ -75,19 +75,19 @@
       "PPO": {
         "_desc": "Modelo avançado de RL",
         "use_reservoir": false,
-        "learning_rate": 1.535457601122055e-05,
+        "learning_rate": 0.0002491161029090575,
         "gamma": 0.98,
         "hidden_layers": [
-          256,
-          256
+          128,
+          128
         ],
         "update_horizon": 2048,
         "gae_lambda": 0.9,
         "clip_coef": 0.3,
-        "ent_coef": 0.01648013717093314,
+        "ent_coef": 0.0094611037823178,
         "vf_coef": 0.5,
-        "update_epochs": 10,
-        "batch_size": 256
+        "update_epochs": 4,
+        "batch_size": 64
       },
       "Random": {
         "_desc": "Agente trivial, amostra uma ação do ambiente."
