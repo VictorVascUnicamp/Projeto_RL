@@ -11,7 +11,15 @@ class MemristiveSynapse:
 
     def apply_delta(self, delta: float, w_min: float, w_max: float) -> None:
         """Aplica variação com saturação física (Clamping)."""
-        self.w = float(np.clip(self.w + delta, w_min, w_max))
+        # Matemática nativa sem overhead de C-API do NumPy para escalares:
+        # np.clip(self.w + delta, w_min, w_max) só vale a pena para matrizes grandes.
+        novo_w = self.w + delta
+        if novo_w > w_max:
+            self.w = w_max
+        elif novo_w < w_min:
+            self.w = w_min
+        else:
+            self.w = novo_w
 
 class AHAHNode:
     """

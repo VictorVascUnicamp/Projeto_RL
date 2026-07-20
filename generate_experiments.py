@@ -63,36 +63,36 @@ grades_de_teste = [
     #     "encoder": ["adaptive"],
     #     "use_reservoir": [False]
     # },
-    # GRADE 5: Otimização do ESN
-    {
-        "env": ["CartPole", "Reacher2D"],
-        "agent": ["ESN"],
-        "mode": ["episodic", "continuous"]
-    },
-    {
-        "env": ["BipedalWalker"],
-        "agent": ["ESN"],
-        "mode": ["episodic"]
-    },
-    # # GRADE 6: AHAH com Reservatório
+    # # GRADE 5: Otimização do ESN
     # {
     #     "env": ["CartPole", "Reacher2D"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic", "continuous"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [True]
+    #     "agent": ["ESN"],
+    #     "mode": ["episodic", "continuous"]
     # },
     # {
     #     "env": ["BipedalWalker"],
-    #     "agent": ["AHAH"],
-    #     "mode": ["episodic"],
-    #     "bias": ["B"],
-    #     "temporal": [False],
-    #     "encoder": ["fixed"],
-    #     "use_reservoir": [True]
-    # }
+    #     "agent": ["ESN"],
+    #     "mode": ["episodic"]
+    # },
+    # GRADE 6: AHAH com Reservatório
+    {
+        "env": ["CartPole", "Reacher2D"],
+        "agent": ["AHAH"],
+        "mode": ["episodic", "continuous"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [True]
+    },
+    {
+        "env": ["BipedalWalker"],
+        "agent": ["AHAH"],
+        "mode": ["episodic"],
+        "bias": ["B"],
+        "temporal": [False],
+        "encoder": ["fixed"],
+        "use_reservoir": [True]
+    }
 ]
 
 contador = 0

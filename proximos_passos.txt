@@ -1,0 +1,17 @@
+1. Vetorização Completa do AHaH
+
+    O Problema: Atualmente, a camada motora do AHaH (core.py) usa Programação Orientada a Objetos (uma classe para Camada, contendo listas de Nós, contendo listas de Sinapses). A atualização dos memristores usa loops nativos do Python, o que é extremamente lento.
+
+    A Solução: Reescrever a arquitetura do AHaH para usar puramente matrizes 2D do NumPy/PyTorch (como o PPO e o Encoder SAOL fazem), eliminando as classes AHaHNode e MemristiveSynapse. Isso aceleraria o treino em mais de 10 vezes.
+
+2. AHaH com Temporal Difference
+
+    O Problema: O AHaH base não lida com inércia e atribuição de crédito temporal, necessitando do Reservatório (LSM) como pré-processador de memória.
+
+    A Solução: Desenvolver uma arquitetura onde um nó AHaH (Crítico) tenta prever a recompensa futura e gera um erro de previsão (TD Error). Esse erro atua como um sinal global de "Dopamina" (modulador de tensão) para a camada motora (Ator), unindo o AHaH puro às equações de Bellman sem usar Backpropagation.
+
+3. Otimização de Hiperparâmetros Bayesiana
+
+    O Problema: O tuning.py utiliza busca aleatória (np.random). Muitos ciclos de CPU são gastos testando parâmetros em regiões sub-ótimas do espaço de busca.
+
+    A Solução: Substituir a amostragem aleatória por uma biblioteca de Otimização Bayesiana (como o Optuna). Ela cria modelos probabilísticos para adivinhar onde estão os melhores hiperparâmetros, atingindo convergência com muito menos trials.
