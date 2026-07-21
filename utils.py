@@ -435,14 +435,8 @@ def validate_config_rules(config: Dict[str, Any]):
             raise ValueError(
                 f"[CONFIG ERROR] DQN Combinatorial com {num_joints} juntas gera {action_space_size} saídas. "
                 "Ative 'independent_joints': true ou reduza 'num_joints'.")
-        
-    # Regra 4: AHAH requer Reward Shaping no CartPole
-    if agent_type == "AHAH" and env_name == "CartPole":
-        if not env_conf.get("use_reward_shaping", False):
-            print("[AVISO] AHAH no CartPole geralmente requer 'use_reward_shaping': true para aprender")
-
             
-    # Regra 5: Reservatório substitui encoders no AHAH.
+    # Regra 4: Reservatório substitui encoders no AHAH.
     if use_res:
         actual_agent = config.get("definitions", {}).get("agents", {}).get("ESN", {}).get("standard_model", "PPO") if agent_type == "ESN" else agent_type
         if actual_agent == "AHAH":
