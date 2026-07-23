@@ -79,7 +79,6 @@ class Reacher2DEnv(gym.Env):
         # Armazena a posição da ponta (ee_pos) e dos olhos para não recalcular
         # várias vezes no mesmo passo (uma vez para reward, outra para obs).
         self.cache_kinematics = (np.zeros(2), None, None)
-        self.prev_value = 0.0 
 
         self.reset()
 
@@ -114,7 +113,6 @@ class Reacher2DEnv(gym.Env):
         
         # Inicializa o valor anterior para o reward começar correto
         dist = np.linalg.norm(ee_pos - self.target)
-        self.prev_value = self._calculate_value(float(dist))
         
         return self._get_obs(), {}
 
@@ -142,9 +140,7 @@ class Reacher2DEnv(gym.Env):
 
         # --- CÁLCULO DE RECOMPENSA ---
     
-        current_value = self._calculate_value(float(dist))
-        reward = current_value - self.prev_value
-        self.prev_value = current_value
+        reward = self._calculate_value(float(dist))
         if hit_target:
             reward += 100.0
 
@@ -160,10 +156,6 @@ class Reacher2DEnv(gym.Env):
                     terminated = True # Fim da sessão de treino
                 else:
                     self.target = self._sample_target()
-                    # Recalcula o valor base para o novo alvo imediatamente
-                    # para evitar um "pulo" negativo de recompensa no próximo passo.
-                    new_dist = np.linalg.norm(ee_pos - self.target)
-                    self.prev_value = self._calculate_value(float(new_dist))
             else:
                 # Modo Episódico: Acabou.
                 terminated = True

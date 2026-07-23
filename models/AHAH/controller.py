@@ -92,6 +92,7 @@ class AHAHController(BaseAgent):
         # Cache de Spikes (Para não recalcular encoder na mesma iteração)
         self.last_obs_bytes = None
         self.last_spikes = None
+        self.prev_reward = 0.0 
 
     def _ensure_layer(self, spike_dim: int):
         """Inicializa a camada física se ainda não existir."""
@@ -203,9 +204,14 @@ class AHAHController(BaseAgent):
         # Índice onde começa o bias
         bias_start = int(spikes.shape[0]) - self.bias_per_node
         
+        # Calcula a derivada local da recompensa
         r_local = float(reward)
-        if r_local > 0: sgn_r = 1.0
-        elif r_local < 0: sgn_r = -1.0 
+        delta_r = r_local - self.prev_reward
+        self.prev_reward = r_local
+        
+        # Reforço dependente da derivada
+        if delta_r > 0: sgn_r = 1.0
+        elif delta_r < 0: sgn_r = -1.0 
         else: sgn_r = 0.0
         
         # Função auxiliar para atualizar um grupo de fibras (uma junta ou motor)
@@ -313,6 +319,7 @@ class AHAHController(BaseAgent):
         """Reseta a memória temporal (se houver)."""
         if hasattr(self.encoder, "reset"):
             self.encoder.reset()
+        self.prev_reward = 0.0 
 
     def save(self, path: str):
         """Salva pesos e estado do encoder."""
