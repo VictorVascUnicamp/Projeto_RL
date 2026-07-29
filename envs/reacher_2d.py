@@ -30,7 +30,7 @@ class Reacher2DEnv(gym.Env):
             delta: float = np.pi / 32, 
             min_angle: float = -np.pi,
             max_angle: float = np.pi,
-            max_steps: int = 200,
+            max_steps: int = 250,
             learning_mode: str = "episodic",
             target_count: int = 100,
             obs_mode: str = "geometric"):

@@ -4,7 +4,7 @@
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
     "agent": "AHAH",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "CartPole"
+    "environment": "Reacher2D"
   },
   "training": {
     "episodes": 1000,
@@ -27,10 +27,10 @@
       "ESN": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 80,
-        "spectral_radius": 1.0046752477621392,
-        "leak_rate": 0.339082572307311,
-        "sparsity": 0.056628485268568576
+        "reservoir_size": 50,
+        "spectral_radius": 0.7334156760549918,
+        "leak_rate": 0.32836410758426077,
+        "sparsity": 0.15855232979348044
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
@@ -39,20 +39,20 @@
         "bias_per_node": 1,
         "_bias_mode_options": "'A' (Eq.16/ Fuctional model A), 'B' (Eq.17/F. M. B ), 'C' (Novo/Simétrico)",
         "bias_update_mode": "B",
-        "alpha": 0.0004092879053695726,
-        "beta": 0.0006450170280750721,
+        "alpha": 0.0025597807379598597,
+        "beta": 0.0007922915828415055,
         "w_min": -1.0,
         "w_max": 1.0,
-        "decay": 4.600560649758626e-05,
-        "noise_std": 0.019578588334092088,
+        "decay": 0.001443563004943701,
+        "noise_std": 0.008391491760503746,
         "_encoder_options": "'fixed' (simples) ou 'adaptive' (AHAH SAOL)",
         "encoder_type": "fixed",
         "encoder_beta": 0.00011475218654219327,
         "_temporal_encoder_desc": "Encoder temporal da memória de curto prazo para o AHAH",
         "use_temporal_encoder": false,
-        "temporal_memory": 2,
+        "temporal_memory": 3,
         "policy": "greedy",
-        "global_resolution": 6
+        "global_resolution": 10
       },
       "DQN": {
         "_desc": "Modelo tradicional de RL",
@@ -75,19 +75,19 @@
       "PPO": {
         "_desc": "Modelo avançado de RL",
         "use_reservoir": false,
-        "learning_rate": 8.338390220120864e-05,
-        "gamma": 0.98,
+        "learning_rate": 0.00014553008366801015,
+        "gamma": 0.99,
         "hidden_layers": [
-          256,
-          256
+          64,
+          64
         ],
         "update_horizon": 2048,
-        "gae_lambda": 0.9,
+        "gae_lambda": 0.95,
         "clip_coef": 0.1,
-        "ent_coef": 0.00383887570920522,
+        "ent_coef": 0.08736486559662061,
         "vf_coef": 0.5,
         "update_epochs": 10,
-        "batch_size": 128
+        "batch_size": 64
       },
       "Random": {
         "_desc": "Agente trivial, amostra uma ação do ambiente."
@@ -138,28 +138,28 @@
             "type": "linear",
             "min": -4.0,
             "max": 4.0,
-            "bits": 6
+            "bits": 10
           },
           {
             "name": "cart_vel",
             "type": "linear",
             "min": -5.0,
             "max": 5.0,
-            "bits": 6
+            "bits": 10
           },
           {
             "name": "pole_angle",
             "type": "linear",
             "min": -0.4,
             "max": 0.4,
-            "bits": 6
+            "bits": 10
           },
           {
             "name": "pole_vel",
             "type": "linear",
             "min": -5.0,
             "max": 5.0,
-            "bits": 6
+            "bits": 10
           }
         ]
       },
