@@ -74,7 +74,26 @@ grades_de_teste = [
     #     "agent": ["ESN"],
     #     "mode": ["episodic"]
     # },
-    # GRADE 6: AHAH com Reservatório
+    # # GRADE 6: AHAH com Reservatório
+    # {
+    #     "env": ["CartPole", "Reacher2D"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic", "continuous"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True]
+    # },
+    # {
+    #     "env": ["BipedalWalker"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True]
+    # },
+    # GRADE NOVA: AHAH com Retornos de Monte Carlo
     {
         "env": ["CartPole", "Reacher2D"],
         "agent": ["AHAH"],
@@ -82,7 +101,8 @@ grades_de_teste = [
         "bias": ["B"],
         "temporal": [False],
         "encoder": ["fixed"],
-        "use_reservoir": [True]
+        "use_reservoir": [False, True],
+        "use_monte_carlo": [True]
     },
     {
         "env": ["BipedalWalker"],
@@ -91,7 +111,8 @@ grades_de_teste = [
         "bias": ["B"],
         "temporal": [False],
         "encoder": ["fixed"],
-        "use_reservoir": [True]
+        "use_reservoir": [True],
+        "use_monte_carlo": [True]
     }
 ]
 
@@ -105,8 +126,10 @@ for grade in grades_de_teste:
     temporais = grade.get("temporal", [None])
     encoders = grade.get("encoder", [None])
     use_reservoirs = grade.get("use_reservoir", [False])
+    use_mcs = grade.get("use_monte_carlo", [False]) 
 
-    for env, agent, mode, bias, temporal, encoder, use_res in itertools.product(envs, agents, modes, biases, temporais, encoders, use_reservoirs):
+    for env, agent, mode, bias, temporal, encoder, use_res, use_mc in itertools.product(envs, agents, modes, 
+        biases, temporais, encoders, use_reservoirs, use_mcs):
         cfg = copy.deepcopy(base_config)
         
         # --- APLICAÇÃO GERAL ---
@@ -136,6 +159,7 @@ for grade in grades_de_teste:
             cfg["definitions"]["agents"]["AHAH"]["bias_update_mode"] = bias
             cfg["definitions"]["agents"]["AHAH"]["use_temporal_encoder"] = temporal
             cfg["definitions"]["agents"]["AHAH"]["encoder_type"] = encoder
+            cfg["definitions"]["agents"]["AHAH"]["use_monte_carlo"] = use_mc
             cfg["training"]["freeze"] = False
 
             if use_res:
@@ -147,6 +171,9 @@ for grade in grades_de_teste:
                 nome_partes.append("Temp")
             if encoder == "fixed" and not use_res:
                 nome_partes.append("Fixed")
+
+            if use_mc:
+                nome_partes.append("MC")
         else:
             cfg["training"]["freeze"] = True
             

@@ -98,6 +98,9 @@ def create_results_folder(
             partes_nome.append("Temp")
         if is_fixed and not use_res:
             partes_nome.append("Fixed")
+
+        if config.get("definitions", {}).get("agents", {}).get("AHAH", {}).get("use_monte_carlo", False):
+            partes_nome.append("MC")
             
     nome_final_base = "_".join(partes_nome)
 
@@ -134,7 +137,7 @@ def create_agent(config: Dict[str, Any], env=None, model_path: Optional[str] = N
     agent = None
     if agent_type == "AHAH":
         from models.AHAH.controller import AHAHController
-        agent = AHAHController(config)
+        agent = AHAHController(config, is_eval=is_eval)
         if model_path is not None:
             if not os.path.exists(model_path):
                 raise FileNotFoundError(f"[ERRO FATAL] Pesos do modelo não encontrados no caminho: {model_path}")
