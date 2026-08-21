@@ -92,14 +92,14 @@ def create_results_folder(
         bias = ahah_def.get("bias_update_mode", "C")
         is_fixed = ahah_def.get("encoder_type", "adaptive") == "fixed"
         use_temp = ahah_def.get("use_temporal_encoder", False)
+        use_mc = ahah_def.get("use_monte_carlo", False)
         
         partes_nome.append(f"Bias{bias}")
         if use_temp:
             partes_nome.append("Temp")
         if is_fixed and not use_res:
             partes_nome.append("Fixed")
-
-        if config.get("definitions", {}).get("agents", {}).get("AHAH", {}).get("use_monte_carlo", False):
+        if use_mc:
             partes_nome.append("MC")
             
     nome_final_base = "_".join(partes_nome)
