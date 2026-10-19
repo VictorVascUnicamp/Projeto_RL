@@ -60,8 +60,6 @@ class ContinuousCartPoleWrapper(gym.Wrapper):
             is_success_step = 1
             self.total_successes += 1
 
-        if self.total_successes >= self.success_threshold:
-            truncated = True
         
         # O Contínuo usa a centralização como Score/Reward
         score_continuo = max(0.0, 1.0 - (theta_abs / self.fail_theta))

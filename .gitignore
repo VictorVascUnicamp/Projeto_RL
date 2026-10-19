@@ -6,6 +6,7 @@ test_configs/
 temp_trials/
 experimentos_concluidos.txt
 experimentos_falhos.txt
+proximos_passos.txt
 *.mp4
 *.pth
 *.npz

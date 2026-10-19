@@ -256,11 +256,6 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
     else:
         episodes_call = red_ep
 
-    # Força a desativação de qualquer Early Stopping durante o Tuning
-    config["training"]["target_count"] = 99999
-    if "early_stopping_return" in config["environment"]:
-        del config["environment"]["early_stopping_return"]
-
     # 3. Execução das Seeds
     scores = []
     successes = []
@@ -292,22 +287,11 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
         raw_score = float(np.mean(scores))
         raw_success = float(np.mean(successes))
         duration = time.time() - start_time
-
-        # --- Penalização por Complexidade ---
-        total_params = arch_info.get("total_parameters", 1)
-        penalty_lambda = 0.03
-
-        if raw_score == -float("inf"):
-            penalized_score = -float("inf")
-        else:
-            penalty = abs(raw_score) * penalty_lambda * math.log10(max(1, total_params))
-            penalized_score = raw_score - penalty
         
         # 2. Se deu certo, atualizamos o dicionário
         resultado = {
             "trial_id": trial_id,
-            "score": penalized_score,   
-            "raw_score": raw_score, 
+            "score": raw_score, 
             "success": raw_success,
             "params": params,
             "status": "success",
@@ -315,7 +299,7 @@ def run_trial_job(trial_id: int, params: Dict[str, Any],
             "architecture_info": arch_info 
         }
         
-        print(f"[TRIAL {trial_id} OK] Score Final: {penalized_score:.2f} (Bruto: {raw_score:.2f}) | Tempo: {duration:.1f}s")
+        print(f"[TRIAL {trial_id} OK] Score Final: {raw_score:.2f} | Tempo: {duration:.1f}s")
         
         # Salva o arquivo temporário
         trial_file = os.path.join("temp_trials", f"temp_trial_{trial_id}.json")
@@ -347,11 +331,8 @@ def main():
     
     if agent_type == "Random": return
 
-    # Define o número de testes baseado no nível de conhecimento prévio do modelo
-    if agent_type == "AHAH":
-        num_trials = 40  
-    else:
-        num_trials = 20  # Modelos clássicos já têm hiperparâmetros conhecidos na literatura
+    # Número de testes por modelo
+    num_trials = 40  
 
     learning_mode = base_config["training"]["learning_mode"]
     run_type_name = f"tuning_{learning_mode}"
@@ -518,13 +499,44 @@ def main():
     with open(os.path.join(tuning_dir, "tuning_history.json"), "w") as f:
         json.dump(utils.clean_for_json({"trials": history}), f, indent=2, ensure_ascii=False)
 
-    # 5. Geração e Salvamento do Delta
+    # 5. Geração automática da Fronteira de Pareto (Score Bruto vs. Parâmetros)
+    try:
+        import matplotlib.pyplot as plt
+        
+        valid_trials = [t for t in history if t.get("status") == "success" and t.get("score") != -float("inf")]
+        if valid_trials:
+            param_counts = [t.get("architecture_info", {}).get("total_parameters", 1) for t in valid_trials]
+            trial_scores = [t.get("raw_score", t.get("score")) for t in valid_trials]
+            
+            plt.figure(figsize=(8, 5))
+            plt.scatter(param_counts, trial_scores, color='blue', alpha=0.7, edgecolors='k', label='Modelos Avaliados')
+            
+            # Destaca o campeão selecionado em vermelho
+            best_p_count = best_arch_info.get("total_parameters", 1)
+            plt.scatter([best_p_count], [best_score], color='red', s=120, edgecolors='black', zorder=5, label=f'Selecionado ({best_score:.1f})')
+            
+            plt.xscale('log')
+            plt.xlabel("Número de Parâmetros Ajustáveis (Escala Log)")
+            plt.ylabel("Retorno Bruto Médio (Raw Score)")
+            plt.title(f"Análise de Pareto: {agent_type} em {env_name} ({learning_mode})")
+            plt.grid(True, linestyle='--', alpha=0.5)
+            plt.legend()
+            plt.tight_layout()
+            
+            pareto_path = os.path.join(tuning_dir, "pareto_frontier.png")
+            plt.savefig(pareto_path, dpi=120)
+            plt.close()
+            print(f"[PARETO] Gráfico de dispersão salvo em: {pareto_path}")
+    except Exception as e:
+        print(f"[AVISO] Não foi possível gerar o gráfico de Pareto: {e}")
+
+    # 6. Geração e Salvamento do Delta
 
      # Carrega o config direto do disco rígido
     with open("config.json", "r", encoding="utf-8") as f:
         pure_config = json.load(f)
 
-    # 1. Aplica o Transfer HPO no config
+    # Aplica o Transfer HPO no config
     if hpo_injection:
         pure_config = utils.recursive_update(pure_config, hpo_injection)
         
@@ -533,7 +545,7 @@ def main():
     if use_res and "global_resolution" in params_to_save:
         del params_to_save["global_resolution"]
     
-    # 2. Atualiza os hiperparâmetros atuais
+    # Atualiza os hiperparâmetros atuais
     if agent_type not in pure_config.get("definitions", {}).get("agents", {}):
         if "definitions" not in pure_config: pure_config["definitions"] = {"agents": {}}
         pure_config["definitions"]["agents"][agent_type] = {}
@@ -556,7 +568,7 @@ def main():
                 if isinstance(sensor, dict) and "bits" in sensor:
                     sensor["bits"] = new_bits
 
-    # 3. Arquivo final
+    # Arquivo final
     delta_file = {
         "_metadata": {
             "timestamp": timestamp,

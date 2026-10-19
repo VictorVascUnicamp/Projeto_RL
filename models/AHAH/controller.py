@@ -200,196 +200,136 @@ class AHAHController(BaseAgent):
     def update(self, obs: np.ndarray, action: Any, reward: float, 
                next_obs: Any = None, done: bool = False) -> None:
         """
-        Ciclo de Aprendizado.
-        Lógica de Musculos Agonista/Antagonista
-        Suporta lógica instantânea (Greedy) e Retornos em Bloco (Monte Carlo).
+        Ciclo de Aprendizado Físico (AHAH) Vetorizado.
         """
         spikes = self._get_spikes_cached(obs, learn=True)
+        self._ensure_layer(int(spikes.shape[0]))
         assert self.layer is not None
         layer_ref = self.layer 
 
+        # Helper para montar o vetor hebbiano de todas as fibras em uma única passada
+        def build_hebb_vector(actions_taken, sgn_val):
+            hebb_vec = np.zeros((self.fibers_total, 1), dtype=np.float32)
+            half = self.fibers_per_unit // 2
+
+            if self.action_type == "multi_joint_3state":
+                acts = np.array(actions_taken).flatten()
+                for u in range(self.num_units):
+                    direction = int(acts[u]) - 1 # {-1, 0, 1}
+                    start = u * self.fibers_per_unit
+                    if direction > 0:
+                        hebb_vec[start : start + half] = self.alpha * sgn_val
+                    elif direction < 0:
+                        hebb_vec[start + half : start + self.fibers_per_unit] = self.alpha * sgn_val
+
+            elif self.action_type == "analog_muscle":
+                dirs = np.sign(actions_taken).flatten()
+                for u in range(self.num_units):
+                    start = u * self.fibers_per_unit
+                    if dirs[u] > 0:
+                        hebb_vec[start : start + half] = self.alpha * sgn_val
+                    elif dirs[u] < 0:
+                        hebb_vec[start + half : start + self.fibers_per_unit] = self.alpha * sgn_val
+
+            elif self.action_type == "discrete_2state":
+                direction = 1 if int(actions_taken) == 1 else -1
+                if direction > 0:
+                    hebb_vec[0 : half] = self.alpha * sgn_val
+                else:
+                    hebb_vec[half : self.fibers_per_unit] = self.alpha * sgn_val
+
+            return hebb_vec
+
+        bias_start = int(spikes.shape[0]) - self.bias_per_node
+
         if self.use_mc:
-            # 1. Armazena o evento na memória de curto prazo (Traço de Elegibilidade)
+            # 1. Armazena evento no buffer temporal
             self.trajectory_buffer.append((spikes, action))
             self.ep_reward_sum += float(reward)
             
-            # 2. Avalia se o bloco temporal terminou
+            # 2. Avalia no término do episódio ou bloco
             if done or len(self.trajectory_buffer) >= self.mc_buffer_size:
-                
-                # Inicializa o Baseline na primeira rodada
                 if not self.baseline_init:
                     self.baseline = self.ep_reward_sum
                     self.baseline_init = True
                 
-                # Avalia o Desempenho com Margem de Segurança (Deadzone)
                 delta_r = self.ep_reward_sum - self.baseline
-                
-                # Cria uma tolerância dinâmica
                 margin = abs(self.baseline * 0.05) 
                 
-                # A margem de tolerância perdoa erros pequenos
-                if delta_r < -margin:
-                    sgn_r = -1.0 
-                else:
-                    sgn_r = 1.0 
-                    
-                bias_start = int(spikes.shape[0]) - self.bias_per_node
+                sgn_r = -1.0 if delta_r < -margin else 1.0
                 
-                # 3. Retrospectiva: Aplica a atualização física nas memórias do buffer
+                # 3. Atualização retrospectiva vetorizada
                 for past_spikes, past_action in self.trajectory_buffer:
                     active_idx = np.nonzero(past_spikes)[0]
+                    if len(active_idx) == 0:
+                        continue
                     
-                    # Sub-função física para aplicar correntes (Memristor)
-                    def update_unit_mc(unit_idx, direction_taken):
-                        start = unit_idx * self.fibers_per_unit
-                        end = start + self.fibers_per_unit
-                        half = self.fibers_per_unit // 2
-                        
-                        for k in range(start, end):
-                            node = layer_ref.get_node(k) 
-                            yk = node.potential(past_spikes)
-                            
-                            anti = -self.beta * yk
-                            hebb = 0.0
-                            rel_k = k - start
-                            is_agonist = (rel_k < half)
-                            
-                            if (direction_taken > 0 and is_agonist) or \
-                               (direction_taken < 0 and not is_agonist):
-                                hebb = self.alpha * sgn_r
-                            
-                            node.update_weights(
-                                active_idx=active_idx,
-                                hebb=hebb,
-                                anti_hebb=anti,
-                                decay=self.decay,     
-                                w_min=self.w_min,     
-                                w_max=self.w_max,     
-                                noise_mean=self.noise_mean,
-                                noise_std=self.noise_std,
-                                bias_start_idx=bias_start,
-                                bias_mode=self.bias_update_mode
-                            )
+                    # Potencial vetorizado de todas as fibras para este passo passado
+                    yk = layer_ref.forward(past_spikes).reshape(-1, 1)
+                    anti_vec = -self.beta * yk
+                    hebb_vec = build_hebb_vector(past_action, sgn_r)
 
-                    # Despacha a atualização das fibras conforme a ação gravada
-                    if self.action_type == "multi_joint_3state":
-                        acts = np.array(past_action).flatten()
-                        for i in range(self.num_units):
-                            update_unit_mc(i, int(acts[i]) - 1)
-
-                    elif self.action_type == "analog_muscle":
-                        directions = np.sign(past_action)
-                        for i in range(self.num_units):
-                            update_unit_mc(i, int(directions[i]))
-                            
-                    elif self.action_type == "discrete_2state":
-                        direction = 1 if int(past_action) == 1 else -1
-                        update_unit_mc(0, direction)
-
-                # 4. Ajuste do Baseline (APENAS se não for Validação)
-                if not self.is_eval:
-                    # Média Móvel Exponencial (EMA) para suavizar a régua
-                    self.baseline = 0.9 * self.baseline + 0.1 * self.ep_reward_sum
-                
-                # 5. Limpa a memória para o próximo bloco temporal
-                self.trajectory_buffer.clear()
-                self.ep_reward_sum = 0.0
-
-        else:
-            # =========================================================
-            # Lógica original gulosa (recompensa por passo)
-            # =========================================================
-            active_idx = np.nonzero(spikes)[0]
-            bias_start = int(spikes.shape[0]) - self.bias_per_node
-            
-            # Calcula a derivada local da recompensa
-            r_local = float(reward)
-            delta_r = r_local - self.prev_reward
-            self.prev_reward = r_local
-            
-            # Reforço dependente da derivada
-            if delta_r > 0: sgn_r = 1.0
-            elif delta_r < 0: sgn_r = -1.0 
-            else: sgn_r = 0.0
-            
-            # Função auxiliar para atualizar um grupo de fibras (uma junta ou motor)
-            def update_unit(unit_idx, direction_taken):
-                start = unit_idx * self.fibers_per_unit
-                end = start + self.fibers_per_unit
-                half = self.fibers_per_unit // 2
-                
-                for k in range(start, end):
-                    node = layer_ref.get_node(k) 
-                    yk = node.potential(spikes)
-                    
-                    # 1. Anti-Hebbiano: todos os nós ativos
-                    anti = -self.beta * yk
-                    
-                    # 2. Hebbiano: apenas nós das fibras vencedoras
-                    hebb = 0.0
-                    rel_k = k - start
-                    is_agonist = (rel_k < half)
-                    if (direction_taken > 0 and is_agonist) or \
-                    (direction_taken < 0 and not is_agonist):
-                        hebb = self.alpha * sgn_r
-                    
-                    # Injeta todos os parâmetros físicos no nó
-                    node.update_weights(
+                    layer_ref.update_matrix(
                         active_idx=active_idx,
-                        hebb=hebb,
-                        anti_hebb=anti,
-                        decay=self.decay,     
-                        w_min=self.w_min,     
-                        w_max=self.w_max,     
+                        hebb_vec=hebb_vec,
+                        anti_vec=anti_vec,
+                        decay=self.decay,
+                        w_min=self.w_min,
+                        w_max=self.w_max,
                         noise_mean=self.noise_mean,
                         noise_std=self.noise_std,
                         bias_start_idx=bias_start,
                         bias_mode=self.bias_update_mode
                     )
 
-            # Despacha atualização para as unidades
-            if self.action_type == "multi_joint_3state":
-                actions = np.array(action).flatten()
-                for i in range(self.num_units):
-                    # action[i] é {0,1,2}, direction é {-1,0,1}
-                    update_unit(i, int(actions[i]) - 1)
+                # 4. Ajuste do Baseline (apenas no treino)
+                if not self.is_eval:
+                    self.baseline = 0.9 * self.baseline + 0.1 * self.ep_reward_sum
+                
+                self.trajectory_buffer.clear()
+                self.ep_reward_sum = 0.0
 
-            elif self.action_type == "analog_muscle":
-                # Extrai o sinal da ação (-1, 0, 1) para saber qual fibra reforçar
-                directions = np.sign(action)
-                for i in range(self.num_units):
-                    update_unit(i, int(directions[i]))
-                    
-            elif self.action_type == "discrete_2state":
-                # CartPole: 0 ou 1 -> -1 ou 1
-                direction = 1 if int(action) == 1 else -1
-                update_unit(0, direction)
+        else:
+            # Modo Guloso (Reacher2D) vetorizado
+            active_idx = np.nonzero(spikes)[0]
+            if len(active_idx) > 0:
+                r_local = float(reward)
+                delta_r = r_local - self.prev_reward
+                self.prev_reward = r_local
+                
+                if delta_r > 0: sgn_r = 1.0
+                elif delta_r < 0: sgn_r = -1.0 
+                else: sgn_r = 0.0
+
+                yk = layer_ref.forward(spikes).reshape(-1, 1)
+                anti_vec = -self.beta * yk
+                hebb_vec = build_hebb_vector(action, sgn_r)
+
+                layer_ref.update_matrix(
+                    active_idx=active_idx,
+                    hebb_vec=hebb_vec,
+                    anti_vec=anti_vec,
+                    decay=self.decay,
+                    w_min=self.w_min,
+                    w_max=self.w_max,
+                    noise_mean=self.noise_mean,
+                    noise_std=self.noise_std,
+                    bias_start_idx=bias_start,
+                    bias_mode=self.bias_update_mode
+                )
 
     def get_state(self) -> bytes:
-        """
-        Gera o arquivo .npz diretamente na memória RAM.
-        """
+        """Serializa a matriz W diretamente da RAM para o .npz."""
         if self.layer is None:
             return b""
             
-        # 1. Coleta os pesos
-        W = []
-        for node in self.layer.nodes:
-            W.append([s.w for s in node.synapses])
-        
-        # 2. Monta o dicionário de dados
         save_dict = {
-            "W": np.array(W, dtype=np.float32),
+            "W": self.layer.W.astype(np.float32),
             "encoder_state": self.encoder.save_state()
         }
         
-        # 3. Salva em Buffer de Memória (BytesIO)
         memory_file = io.BytesIO()
-        
-        # O numpy escreve o ZIP dentro dessa variável 'memory_file'
         np.savez(memory_file, **save_dict)
-        
-        # 4. Retorna o conteúdo binário
         return memory_file.getvalue()
     
     def get_architecture_info(self) -> Dict[str, Any]:
@@ -422,30 +362,24 @@ class AHAHController(BaseAgent):
         self.ep_reward_sum = 0.0
 
     def save(self, path: str):
-        """Salva pesos e estado do encoder."""
-        if self.layer is None: return
-        W = []
-        for node in self.layer.nodes:
-            W.append([s.w for s in node.synapses])
-        
+        """Salva a matriz de pesos W e o estado do encoder no disco."""
+        if self.layer is None: 
+            return
         save_dict = {
-            "W": np.array(W, dtype=np.float32),
+            "W": self.layer.W.astype(np.float32),
             "encoder_state": self.encoder.save_state()
         }
         np.savez(path, **save_dict)
 
     def load(self, path: str):
-        """Carrega pesos e estado do encoder."""
+        """Carrega a matriz de pesos W diretamente."""
         data = np.load(path, allow_pickle=True)
         W = data["W"]
         self._ensure_layer(W.shape[1])
-        if self.layer is None: return 
+        if self.layer is None: 
+            return 
         
-        idx = 0
-        for node in self.layer.nodes:
-            for i, s in enumerate(node.synapses):
-                s.w = float(W[idx, i])
-            idx += 1
+        self.layer.W = W.astype(np.float32)
             
         if "encoder_state" in data:
             self.encoder.load_state(data["encoder_state"].item())

@@ -2,20 +2,27 @@
   "_README": "Este arquivo controla todos os parametros. Chaves com _ são apenas comentários.",
   "selection": {
     "_agent": "agent: 'AHAH', 'DQN', 'PPO', 'ESN' ou 'Random'.",
-    "agent": "AHAH",
+    "agent": "PPO",
     "_environment": "environment: 'Reacher2D', 'CartPole' ou 'BipedalWalker'.",
-    "environment": "BipedalWalker"
+    "environment": "CartPole"
   },
   "training": {
-    "episodes": 5000,
+    "episodes": 1000,
     "_reduction_factor_help": "Divide episódios (ou passos) por este valor durante o tuning e validação.",
     "reduction_factor": 5,
     "_learning_mode_options": "'episodic' ou 'continuous'.",
-    "learning_mode": "episodic",
-    "_target_count_help": "Se continuous, quantos alvos antes de terminar o episódio. Se episodic, critério de parada.",
-    "target_count": 100,
+    "learning_mode": "continuous",
+    "_seeds_help": "Sementes pré-definidas para garantir reprodutibilidade.",
+    "seeds": [
+      101,
+      202,
+      303,
+      404,
+      505,
+      606
+    ],
     "_freeze_help": "Se true, não aprende na validação. Se false, continua aprendendo.",
-    "freeze": false,
+    "freeze": true,
     "render": false,
     "save_frequency": 100,
     "_ma_mode_help": "'dynamic' (divide total por ma_value) ou 'constant' (janela fixa de tamanho ma_value).",
@@ -27,29 +34,29 @@
       "ESN": {
         "_desc": "Reservatório Físico LIF. Pode ser usado pelos outros agentes",
         "standard_model": "PPO",
-        "reservoir_size": 100,
-        "spectral_radius": 1.0618342144233461,
-        "leak_rate": 0.32865307977737074,
-        "sparsity": 0.14326226706564688
+        "reservoir_size": 50,
+        "spectral_radius": 0.7467325270134585,
+        "leak_rate": 0.18057936247266865,
+        "sparsity": 0.08733526677438717
       },
       "AHAH": {
         "_desc": "Controlador Anti-Hebbian and Hebbian.",
         "use_reservoir": true,
         "use_monte_carlo": true,
         "mc_buffer_size": 500,
-        "fibers_per_joint": 14,
+        "fibers_per_joint": 12,
         "bias_per_node": 1,
         "_bias_mode_options": "'A' (Eq.16/ Fuctional model A), 'B' (Eq.17/F. M. B ), 'C' (Novo/Simétrico)",
         "bias_update_mode": "B",
-        "alpha": 0.003429497684031542,
-        "beta": 0.07484251447548894,
+        "alpha": 0.040464767445243126,
+        "beta": 0.014039434341259345,
         "w_min": -1.0,
         "w_max": 1.0,
-        "decay": 1.1169141067503354e-05,
-        "noise_std": 0.0009348949606593948,
+        "decay": 1.0526993321257322e-05,
+        "noise_std": 0.00022061375442844721,
         "_encoder_options": "'fixed' (simples) ou 'adaptive' (AHAH SAOL)",
         "encoder_type": "fixed",
-        "encoder_beta": 0.00011475218654219327,
+        "encoder_beta": 0.00030415911510451736,
         "_temporal_encoder_desc": "Encoder temporal da memória de curto prazo para o AHAH",
         "use_temporal_encoder": false,
         "temporal_memory": 3,
@@ -77,19 +84,19 @@
       "PPO": {
         "_desc": "Modelo avançado de RL",
         "use_reservoir": false,
-        "learning_rate": 0.00014553008366801015,
-        "gamma": 0.99,
+        "learning_rate": 0.000586473979391543,
+        "gamma": 0.95,
         "hidden_layers": [
-          64,
-          64
+          256,
+          256
         ],
         "update_horizon": 2048,
-        "gae_lambda": 0.95,
-        "clip_coef": 0.1,
-        "ent_coef": 0.08736486559662061,
+        "gae_lambda": 0.9,
+        "clip_coef": 0.2,
+        "ent_coef": 0.008045586493347016,
         "vf_coef": 0.5,
-        "update_epochs": 10,
-        "batch_size": 64
+        "update_epochs": 4,
+        "batch_size": 128
       },
       "Random": {
         "_desc": "Agente trivial, amostra uma ação do ambiente."
@@ -175,19 +182,19 @@
             "type": "linear",
             "min": -3.14159,
             "max": 3.14159,
-            "bits": 12
+            "bits": 8
           },
           "vector": {
             "type": "linear",
             "min": -5.0,
             "max": 5.0,
-            "bits": 12
+            "bits": 8
           },
           "eye": {
             "type": "linear",
             "min": 0.0,
             "max": 1.0,
-            "bits": 12
+            "bits": 8
           }
         }
       }

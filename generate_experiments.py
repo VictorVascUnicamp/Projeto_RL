@@ -93,26 +93,53 @@ grades_de_teste = [
     #     "encoder": ["fixed"],
     #     "use_reservoir": [True]
     # },
-    # GRADE NOVA: AHAH com Retornos de Monte Carlo
+    # # GRADE 7: AHAH com Retornos de Monte Carlo
+    # {
+    #     "env": ["CartPole", "Reacher2D"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic", "continuous"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed", "adaptive"],
+    #     "use_reservoir": [False],
+    #     "use_monte_carlo": [True]
+    # },
+    # {
+    #     "env": ["CartPole", "Reacher2D"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic", "continuous"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True],
+    #     "use_monte_carlo": [True]
+    # },
+    # {
+    #     "env": ["BipedalWalker"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed", "adaptive"],
+    #     "use_reservoir": [False],
+    #     "use_monte_carlo": [True]
+    # },
+    # {
+    #     "env": ["BipedalWalker"],
+    #     "agent": ["AHAH"],
+    #     "mode": ["episodic"],
+    #     "bias": ["B"],
+    #     "temporal": [False],
+    #     "encoder": ["fixed"],
+    #     "use_reservoir": [True],
+    #     "use_monte_carlo": [True]
+    # }
+    # Correção
     {
-        "env": ["CartPole", "Reacher2D"],
-        "agent": ["AHAH"],
-        "mode": ["episodic", "continuous"],
-        "bias": ["B"],
-        "temporal": [False],
-        "encoder": ["fixed"],
-        "use_reservoir": [False, True],
-        "use_monte_carlo": [True]
-    },
-    {
-        "env": ["BipedalWalker"],
-        "agent": ["AHAH"],
-        "mode": ["episodic"],
-        "bias": ["B"],
-        "temporal": [False],
-        "encoder": ["fixed"],
-        "use_reservoir": [True],
-        "use_monte_carlo": [True]
+        "env": ["CartPole"],
+        "agent": ["PPO", "DQN"],
+        "mode": ["continuous"],
+        "use_reservoir": [False]   
     }
 ]
 
@@ -137,7 +164,7 @@ for grade in grades_de_teste:
         cfg["selection"]["agent"] = agent
         cfg["training"]["learning_mode"] = mode
         
-        cfg["training"]["target_count"] = 100
+        cfg["training"]["seeds"] = [101, 202, 303, 404, 505, 606]
         
         env_dict = cfg["definitions"]["environments"][env]
 

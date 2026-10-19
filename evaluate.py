@@ -14,6 +14,8 @@ from gymnasium.wrappers import RecordVideo
 from typing import Any, Dict
 from joblib import Parallel, delayed
 import traceback
+import glob
+import copy
 
 # Imports do Projeto
 from envs.factory import make_env
@@ -89,6 +91,7 @@ def run_eval_session(config: Dict, agent_type: str, model_path: str, res_path: s
     warnings.filterwarnings("ignore", message=".*pkg_resources is deprecated.*")
     
     try:
+        np.random.seed(seed) # Garante semente aleatória para o Random
         # 1. Cria Ambiente
         env = make_env(config, reservoir_load_path=res_path)
         
@@ -135,8 +138,16 @@ def run_eval_session(config: Dict, agent_type: str, model_path: str, res_path: s
                 
                 obs = next_obs
                 steps += 1
+
+            learning_mode = train_conf["learning_mode"]
             
-            returns.append(ep_score)
+            if learning_mode == "continuous":
+                # Normaliza a pontuação total do teste contínuo para blocos de 1.000 passos, igual os gráficos.
+                score_padronizado = (ep_score / (steps + 1e-9)) * 1000.0
+                returns.append(float(score_padronizado))
+            else:
+                returns.append(float(ep_score))
+
             success.append(succ)
             lengths.append(steps)
             
@@ -151,162 +162,136 @@ def run_eval_session(config: Dict, agent_type: str, model_path: str, res_path: s
 
 def evaluate(result_dir: str):
     """
-    Função Principal de Avaliação.
-    Gerencia a orquestração (Paralela vs Serial) e a gravação de vídeo.
+    Função Principal de Avaliação Estatística Inter-Sementes.
+    Avalia cada um dos modelos treinados nas sessões independentes sob a mesma bateria de testes.
+    Executa o benchmark oficial congelado e, se configurado, o protocolo adaptativo.
     """
     start_time = time.time()
     
-    # 1. Carrega Configuração
+    # 1. Carrega Configuração Oficial
     config_path = os.path.join(result_dir, "config.json")
     if not os.path.exists(config_path):
-        print(f"[EVAL ERROR] Config não encontrado: {result_dir}")
-        return
+        raise FileNotFoundError(f"[ERRO FATAL] Arquivo config.json não encontrado em: {result_dir}")
 
-    # load_config regenera as listas de sensores a partir dos templates se necessário
     config = load_config(config_path)
-    
     agent_type = config["agent"]["type"]
     env_name = config["environment"]["name"]
     train_conf = config["training"]
     learning_mode = train_conf["learning_mode"]
-    freeze = train_conf.get("freeze", True)
     
-    print(f"\n--- Avaliando Modelo ({learning_mode}) ---", flush=True)
-    print(f"Path: {result_dir}", flush=True)
-    print(f"Freeze: {freeze}", flush=True)
-    if not freeze: 
-        print(f"[INFO] O modelo ira aprender durante a validação.")
-        print(f"Selecione 'Freeze = true' para desabilitar o aprendizado")
+    # Verifica a preferência de adaptação no config original
+    frozen = train_conf.get("freeze", True)
     
+    # Configura episódios de teste
+    config["training"]["episodes"] = 50
+    eval_episodes = 1 if learning_mode == "continuous" else 50
     ext = "npz" if agent_type == "AHAH" else "pth"
-    model_path = os.path.join(result_dir, f"final_model.{ext}")
     res_load_path = os.path.join(result_dir, "reservoir.npz")
-    
-    # 2. Configura Duração do Teste
-    config["training"]["target_count"] = 99999
 
-    # Desativa parada precoce para validar tudo
-    if "early_stopping_return" in config["environment"]:
-        del config["environment"]["early_stopping_return"] 
 
-    config["training"]["episodes"] = 50 # No contínuo, multiplica os passos.
-    if learning_mode == "continuous":
-        eval_episodes = 1
+    # Localiza todos os modelos salvos das sessões de treino
+    if agent_type == "Random":
+        # Random não salva pesos em disco. Cria workers virtuais sem arquivos.
+        eval_workers = N_WORKERS
+        session_model_files = [None] * eval_workers
     else:
-        eval_episodes = 50
+        session_model_files = sorted(glob.glob(os.path.join(result_dir, f"model_session_*.{ext}")))
+        if not session_model_files:
+            # Fallback caso execute em pastas legadas com apenas um modelo
+            single_path = os.path.join(result_dir, f"final_model.{ext}")
+            session_model_files = [single_path] if os.path.exists(single_path) else []
 
-    total_scores = []
-    total_success = []
-    total_lengths = []
+        if not session_model_files:
+            raise FileNotFoundError(
+                f"[ERRO FATAL EVAL] Nenhum modelo ('model_session_*.{ext}' ou 'final_model.{ext}') "
+                f"foi encontrado em '{result_dir}'. O treinamento pode ter falhado ao salvar os pesos."
+            )
     
-    # Prepara pasta de vídeo
-    video_folder = os.path.join(result_dir, "videos")
-    os.makedirs(video_folder, exist_ok=True)
+    n_models = len(session_model_files)
+    eval_workers = min(N_WORKERS, n_models) if n_models > 0 else 1
 
-    # Pré_inicialização para o pylance não reclamar
-    agent_vid = None
-    agent = None
+    # Semente base única para teste emparelhado
+    EVAL_BASE_SEED = 10001
 
-    # 3. Execução
+    def run_benchmark_suite(is_frozen: bool, stats_filename: str, video_subfolder: str):
+        """Executa a avaliação paralela dos modelos e gera vídeo demonstrativo sob o regime especificado."""
+        regime_name = "TRADICIONAL" if is_frozen else "ADAPTATIVO"
+        print(f"\n--- Bateria de Testes ({regime_name}) ---", flush=True)
 
-    # Fase 1: Estatística 
-    # Rodamos várias sessões em paralelo para ter uma média robusta de desempenho
-    print(f"Rodando {N_WORKERS} sessões em paralelo...", flush=True)
-    
-    # Gerador de seeds robusto
-    ss = SeedSequence(int(time.time()))
-    child_seeds = ss.generate_state(N_WORKERS)
-    
-    results = Parallel(n_jobs=N_WORKERS, backend="loky")(
-        delayed(run_eval_session)(config, agent_type, model_path, res_load_path, eval_episodes, int(child_seeds[i]))
-        for i in range(N_WORKERS)
-    )
-    
-    # Consolida resultados
-    for res in results:
-        if res and "scores" in res:
-            total_scores.extend(res["scores"])
-            total_success.extend(res["success"])
-            total_lengths.extend(res["lengths"])
+        cfg_run = copy.deepcopy(config)
+        cfg_run["training"]["freeze"] = is_frozen
+        cfg_run["training"]["episodes"] = 50
+
+        # Executa em paralelo: worker i avalia o modelo i enfrentando a mesma EVAL_BASE_SEED
+        results = Parallel(n_jobs=eval_workers, backend="loky")(
+            delayed(run_eval_session)(
+                cfg_run, agent_type, 
+                session_model_files[i % len(session_model_files)], 
+                res_load_path, eval_episodes, 
+                (EVAL_BASE_SEED + i) if agent_type == "Random" else EVAL_BASE_SEED
+            )
+            for i in range(eval_workers)
+        )
+
+        valid = [r for r in results if r and "scores" in r]
+        if not valid:
+            raise RuntimeError(
+                f"[ERRO FATAL EVAL] Todas as sessões de avaliação paralelas falharam no regime {regime_name}. "
+                f"Verifique os logs de exceção dos workers acima."
+            )
+
+        # Métricas agregadas por modelo treinado
+        scores_per_model = [np.mean(r["scores"]) for r in valid]
+        succ_per_model = [r["success"][-1] if learning_mode == "continuous" else sum(r["success"]) for r in valid]
+        lengths_per_model = [np.mean(r["lengths"]) for r in valid]
+
+        # Estatística Inter-Sementes
+        stats = {
+            "agent": agent_type,
+            "env": env_name,
+            "mode": learning_mode,
+            "frozen_evaluation": is_frozen,
+            "models_evaluated": len(valid),
+            "episodes_per_model": eval_episodes,
+            "paired_eval_seed": EVAL_BASE_SEED,
+            "mean_score": float(np.mean(scores_per_model)),
+            "std_score": float(np.std(scores_per_model)),
+            "mean_success": float(np.mean(succ_per_model)),
+            "std_success": float(np.std(succ_per_model)),
+            "mean_steps": float(np.mean(lengths_per_model)),
+            "scores_per_model": scores_per_model
+        }
+
+        with open(os.path.join(result_dir, stats_filename), "w") as f:
+            json.dump(clean_for_json(stats), f, indent=2)
+
+        # Gravação de Vídeo demonstrativo do regime
+        vid_dir = os.path.join(result_dir, "videos", video_subfolder)
+        os.makedirs(vid_dir, exist_ok=True)
+        print(f"Gravando vídeo ({regime_name}) em: {vid_dir}...", flush=True)
+
+        best_model_path = None if agent_type == "Random" else os.path.join(result_dir, f"final_model.{ext}")
+        env_vid = make_env(cfg_run, reservoir_load_path=res_load_path)
+        env_vid = RecordVideo(env_vid, vid_dir, episode_trigger=lambda x: True, name_prefix=f"eval_{video_subfolder}")
+        agent_vid = create_agent(cfg_run, env=env_vid, model_path=best_model_path, is_eval=True)
         
-    # Fase 2: Vídeo
-    print("Gerando vídeo de demonstração...", flush=True)
-    
-    # Cria ambiente local com wrapper de gravação
-    env_vid = make_env(config, reservoir_load_path=res_load_path) 
-    env_vid = RecordVideo(env_vid, video_folder, episode_trigger=lambda x: True, name_prefix="eval_cont")
-    
-    # Carrega agente localmente (não via worker)
-    agent_vid = create_agent(config, env=env_vid, model_path=model_path, is_eval=True)
-    
-    if agent_vid:
-        # Roda loop local com limite forçado de passos
-        n_video = 3 if learning_mode == "continuous" else 6
-        _run_local_loop(env_vid, agent_vid, n_video, freeze=freeze, video_limit=2000)
-    
-    env_vid.close()
+        if agent_vid:
+            n_video = 3 if learning_mode == "continuous" else 6
+            _run_local_loop(env_vid, agent_vid, n_video, seed_start=EVAL_BASE_SEED, freeze=is_frozen, video_limit=2000)
+        env_vid.close()
 
-    # 4. Cálculo de Métricas Finais
+        print(f"[{regime_name} OK] Score: {stats['mean_score']:.2f} ± {stats['std_score']:.2f}")
+        return stats
+
+    # PROTOCOLO 1 (Oficial): Sempre executa com pesos congelados
+    main_stats = run_benchmark_suite(is_frozen=True, stats_filename="eval_stats.json", video_subfolder="frozen")
+
+    # PROTOCOLO 2 (Adicional): Executa se o config permitir adaptação contínua (freeze: false)
+    if not frozen:
+        run_benchmark_suite(is_frozen=False, stats_filename="eval_adaptive_stats.json", video_subfolder="adaptive")
+
     total_duration = time.time() - start_time
-    total_steps_hardware = sum(total_lengths)
-    fps = total_steps_hardware / (total_duration + 1e-9)
-    
-    # Filtra os workers que retornaram dados com sucesso
-    valid_results = [r for r in results if r]
-    n_sessions = len(valid_results)
-    
-    # Agregação estatística por SESSÃO
-    if learning_mode == "continuous":
-        # No contínuo, a vitória é o último valor acumulado de sucesso no único episódio longo
-        success_per_worker = [r["success"][-1] for r in valid_results if "success" in r and r["success"]]
-    else:
-        # No episódico, a vitória é a soma dos sucessos dentro dos 50 episódios rodados
-        success_per_worker = [sum(r["success"]) for r in valid_results if "success" in r]
-
-    # Média e Desvio Padrão por Sessão de 50 episódios (ou 1 longo)
-    mean_success = float(np.mean(success_per_worker)) if success_per_worker else 0.0
-    std_success = float(np.std(success_per_worker)) if success_per_worker else 0.0
-    
-    # Média do score de cada worker para garantir uma métrica macro justa
-    scores_per_worker = [np.mean(r["scores"]) for r in valid_results if "scores" in r]
-    mean_score_global = float(np.mean(scores_per_worker)) if scores_per_worker else 0.0
-    std_score_global = float(np.std(scores_per_worker)) if scores_per_worker else 0.0
-
-    # Usa o agente criado para o vídeo para extrair a arquitetura real do modelo avaliado
-    arch_info = agent_vid.get_architecture_info() if agent_vid and agent_type != "Random" else {}
-    
-    use_res = config.get(agent_type, {}).get("use_reservoir", False) or agent_type == "LSM"
-    if use_res and isinstance(arch_info, dict) and arch_info:
-        orig_in = config["environment"].get("orig_input_dim", "?")
-        res_size = arch_info.get("input_dim", "?") 
-        out_dim = arch_info.get("output_dim", arch_info.get("output_fibers", "?"))
-        arch_info["architecture"] = f"({orig_in} -> Reservoir[{res_size}] -> {out_dim})"
-
-    final_stats = {
-        "agent": agent_type,
-        "env": env_name,
-        "architecture_info": arch_info,
-        "mode": learning_mode,
-        "sessions_run": n_sessions, 
-        "episodes_per_session": eval_episodes, 
-        "total_duration": round(total_duration, 2),
-        "inference_fps": round(fps, 2),
-        "mean_steps_per_episode": float(np.mean(total_lengths)) if total_lengths else 0.0, 
-        "mean_score_global": mean_score_global,
-        "std_score_global": std_score_global,
-        "mean_success": mean_success,
-        "std_success": std_success
-    }
-    
-    # Salva JSON limpo
-    with open(os.path.join(result_dir, "eval_stats.json"), "w") as f:
-        json.dump(clean_for_json(final_stats), f, indent=2)
-    
-    # Salva histórico bruto
-    with open(os.path.join(result_dir, "eval_history.json"), "w") as f:
-        json.dump({"scores": total_scores, "success": total_success, "lengths": total_lengths}, f)
-
-    print(f"[EVAL DONE] Score: {final_stats.get('mean_score', 0):.2f} | FPS: {final_stats['inference_fps']:.0f}", flush=True)
+    print(f"\n[EVAL COMPLETO] Tempo total de validação: {total_duration:.1f}s", flush=True)
 
 if __name__ == "__main__":
     # Bloco de Auto-Execução

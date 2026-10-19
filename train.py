@@ -14,6 +14,7 @@ from typing import Any, Dict, List, cast, Optional
 from collections import defaultdict
 import shutil
 import traceback
+import sys
 
 # Joblib: Biblioteca para computação paralela
 from joblib import Parallel, delayed
@@ -116,8 +117,6 @@ def train_session(
     best_ma_score = -float('inf')
     best_model_state = None
     ma_val = int(train_conf.get("ma_value", 20))
-    # Limite para término precoce
-    target_count = train_conf.get("target_count", None)
     
     # 3. Loop Principal de Treinamento
     for ep in range(episodes):
@@ -159,14 +158,6 @@ def train_session(
                 # Coleta os sucessos
                 if info.get("is_success", 0) > 0:
                     success += int(info["is_success"])
-
-                    # Parada Global para o Modo Contínuo
-                    if learning_mode == "continuous" and target_count is not None:
-                        if success >= target_count:
-                            print(f"\n[Sessão {session_id}] [VITÓRIA CONTÍNUA] Alvo atingido ({success}/{target_count}).", flush=True)
-                            if global_stop_event: global_stop_event.set()
-                            done = True
-                            break
                 
                 # --- LÓGICA DO MODO CONTÍNUO ---
                 if learning_mode == "continuous":
@@ -199,7 +190,7 @@ def train_session(
             session_metrics["ep_scores"].append(ep_score)
             session_metrics["lengths"].append(steps)
             
-            # --- [NOVO] RASTREAMENTO DO MELHOR MODELO & PARADA PRECOCE ---
+            # --- [NOVO] RASTREAMENTO DO MELHOR MODELO ---
             if agent_type != "Random":
                 # Calcula a média móvel com base nos retornos episódicos reais
                 window = min(len(session_metrics["ep_scores"]), ma_val)
@@ -210,20 +201,6 @@ def train_session(
                     if current_ma > best_ma_score:
                         best_ma_score = current_ma
                         best_model_state = agent.get_state()
-                        
-                    # Parada precoce baseada na taxa de sucesso com janela de tolerância
-                    if target_count is not None:
-                        window_x = int(target_count * 1.1) # Tolerância de 10%
-                        # Verifica se temos episódios suficientes + 1 para subtrair com segurança
-                        if len(session_metrics["success"]) >= window_x+1:
-                            # Calcula as vitórias conquistadas dentro da janela móvel
-                            success_in_window = session_metrics["success"][-1] - session_metrics["success"][-(window_x + 1)]
-                            if success_in_window >= target_count:
-                                print(f"\n[Sessão {session_id}] [EARLY STOPPING] Alvo atingido ({success_in_window} sucessos nos últimos {window_x} eps)." 
-                                    f"Parando o treino no episódio {ep+1}!", flush=True)
-                                # Encerra os outros workers
-                                if global_stop_event: global_stop_event.set()
-                                break
 
             # Feedback em Tempo Real (Apenas sessão principal e modo episódico)
             if learning_mode == "episodic" and session_id == 0:
@@ -308,20 +285,19 @@ def main():
     # CRONÔMETRO GLOBAL
     global_start_time = time.time()
 
-    # GERAÇÃO DE SEMENTES ROBUSTAS
-    ss = SeedSequence(int(time.time()))
+    # 2. GERAÇÃO DE SEMENTES DETERMINÍSTICAS (Reprodutibilidade)
 
-    # 2. Execução
-    # Rodamos várias sessões em paralelo e pegamos a melhor.
-    num_sessions = N_JOBS
-    print(f"--- Treino Contínuo: {num_sessions} sessões paralelas ---", flush=True)
+    # Lista padrão de 6 sementes independentes a priori
+    default_seeds = [101, 202, 303, 404, 505, 606]
+    configured_seeds = train_conf.get("seeds", default_seeds)
+    num_sessions = min(N_JOBS, len(configured_seeds))
+    child_seeds = configured_seeds[:num_sessions]
 
-    # Cria um comunicador global para as sessões pararem juntas
+    print(f"--- Treinando {num_sessions} sessões paralelas com sementes fixas {child_seeds} ---", flush=True)
+
     manager = multiprocessing.Manager()
     global_stop_event = manager.Event()
 
-    # Gera N sementes filhas independentes
-    child_seeds = ss.generate_state(num_sessions)
     results = Parallel(n_jobs=num_sessions, backend="loky")(
         delayed(train_session)(i, config, int(child_seeds[i]), checkpoints_dir, global_stop_event)
         for i in range(num_sessions)
@@ -332,18 +308,26 @@ def main():
     # 3. Consolidação dos Resultados
     valid_results = [r for r in results if r is not None and r["status"] == "success"]
     if not valid_results:
-        print("[ERRO] Todas as sessões falharam.", flush=True)
-        return
+        print("\n[ERRO CRÍTICO] Todas as sessões de treinamento falharam ou colapsaram.", flush=True)
+        sys.exit(1)
 
     # === ESCOLHA DO CAMPEÃO ===
 
     # Função interna para dar uma nota a cada sessão concluída
     def avaliar_sessao(sessao):
-        lista_de_scores = sessao["metrics"].get("ep_scores",[])
-        if len(lista_de_scores) > 0:
-            return float(np.mean(lista_de_scores))
+        # Contínuo: usa window_scores (blocos de N passos, igual ao gráfico).
+        # Episódico: usa ep_scores (por episódio).
+        mets = sessao["metrics"]
+        if learning_mode == "continuous":
+            lista = mets.get("window_scores", [])
+            if len(lista) == 0:
+                lista = mets.get("ep_scores", [])
         else:
-            # Se a lista estiver vazia (erro), retorna "menos infinito" para nunca ser escolhida
+            lista = mets.get("ep_scores", [])
+
+        if len(lista) > 0:
+            return float(np.mean(lista))
+        else:
             return -float('inf')
 
     # Prepara display e métricas do campeão
@@ -355,17 +339,28 @@ def main():
 
     print(f"--- Melhor Resultado: {score_display} ---", flush=True)
     
-    # Salva Modelo Final (Campeão)
-    if agent_type != "Random" and best_res["model_state"]:
+    # Salva TODOS os modelos treinados para a validação estatística
+    if agent_type != "Random":
         ext = "npz" if agent_type == "AHAH" else "pth"
-        save_path = os.path.join(results_dir, f"final_model.{ext}")
-        if agent_type == "AHAH":
-            with open(save_path, "wb") as f: f.write(best_res["model_state"])
-        else:
-            import torch
-            torch.save(best_res["model_state"], save_path)
+        for idx, res in enumerate(valid_results):
+            if res.get("model_state"):
+                sess_path = os.path.join(results_dir, f"model_session_{idx}.{ext}")
+                if agent_type == "AHAH":
+                    with open(sess_path, "wb") as f: f.write(res["model_state"])
+                else:
+                    import torch
+                    torch.save(res["model_state"], sess_path)
 
-    # Salva Matrizes do Reservatório para a Validação [NOVO]
+        # Salva também a melhor sessão como 'final_model' para histórico e vídeos
+        if best_res.get("model_state"):
+            save_path = os.path.join(results_dir, f"final_model.{ext}")
+            if agent_type == "AHAH":
+                with open(save_path, "wb") as f: f.write(best_res["model_state"])
+            else:
+                import torch
+                torch.save(best_res["model_state"], save_path)
+
+    # Salva Matrizes do Reservatório para a Validação
     if best_res.get("reservoir_state"):
         np.savez(os.path.join(results_dir, "reservoir.npz"), **best_res["reservoir_state"])
     
@@ -376,15 +371,39 @@ def main():
     fps_global = total_steps_hardware / (global_total_time + 1e-9)
     arch_info = best_res.get("arch_info", {})
 
-    # Coleta dos dados das sessões
-    all_scores = [np.mean(r["metrics"]["ep_scores"]) for r in valid_results if r["metrics"].get("ep_scores")]
+    def extrair_serie_padronizada(sessao_result):
+        mets = sessao_result["metrics"]
+        if learning_mode == "continuous":
+            w = mets.get("window_scores", [])
+            return w if len(w) > 0 else mets.get("ep_scores", [])
+        return mets.get("ep_scores", [])
+
+    # 1. Coleta das médias de toda a trajetória usando a série padronizada
+    all_scores = [np.mean(extrair_serie_padronizada(r)) for r in valid_results if len(extrair_serie_padronizada(r)) > 0]
     all_lengths = [np.mean(r["metrics"]["lengths"]) for r in valid_results if r["metrics"].get("lengths")]
     all_successes = [r["metrics"]["success"][-1] for r in valid_results if r["metrics"].get("success")]
 
-    # Média transversal das 6 sessões 
+    # 2. Desempenho no FINAL do treino (últimos 100 blocos ou metade do treino se for curto)
+    sample_scores = extrair_serie_padronizada(valid_results[0])
+    window_final = min(100, max(1, len(sample_scores) // 2)) if len(sample_scores) > 0 else 1
+    final_window_scores = [np.mean(extrair_serie_padronizada(r)[-window_final:]) for r in valid_results if len(extrair_serie_padronizada(r)) > 0]
+
+    # 3. Médias e Desvios Padrão Inter-Sementes (Treino Completo)
     mean_score_global = float(np.mean(all_scores)) if all_scores else 0.0
+    std_score_global = float(np.std(all_scores)) if all_scores else 0.0
+
+    mean_final_score_training = float(np.mean(final_window_scores)) if final_window_scores else 0.0
+    std_final_score_training = float(np.std(final_window_scores)) if final_window_scores else 0.0
+
     mean_success_global = float(np.mean(all_successes)) if all_successes else 0.0
+    std_success_global = float(np.std(all_successes)) if all_successes else 0.0
+
     mean_steps_global = float(np.mean(all_lengths)) if all_lengths else 0.0
+    std_steps_global = float(np.std(all_lengths)) if all_lengths else 0.0
+
+    # 4. [NOVO]: Média e Desvio Padrão do Patamar Final de Treino
+    mean_final_score_training = float(np.mean(final_window_scores)) if final_window_scores else 0.0
+    std_final_score_training = float(np.std(final_window_scores)) if final_window_scores else 0.0
 
     # Desempenho exato da sessão cujo modelo foi salvo no disco
     best_idx = valid_results.index(best_res)
@@ -393,6 +412,7 @@ def main():
     best_session_steps = float(all_lengths[best_idx]) if all_lengths else 0.0
 
     final_stats = {
+        # Métricas gerais
         "agent": agent_type,
         "env": env_name,
         "architecture_info": arch_info,
@@ -400,12 +420,28 @@ def main():
         "sessions_run": len(valid_results),
         "total_duration": round(global_total_time, 2), 
         "fps_global": round(fps_global, 2),
-        "total_episodes": len(best_res["metrics"].get("lengths", [])),
-        "mean_steps_global": mean_steps_global, 
-        "best_session_steps": best_session_steps, 
-        "mean_score_global": mean_score_global, 
-        "best_session_score": best_session_score, 
+        "total_lenght": len(best_res["metrics"].get("lengths", [])),
+        "used_seeds": child_seeds,
+        "total_steps": total_steps_hardware,
+
+        # Métricas Inter-Sementes de Treino (Médias ± Desvios Padrão)
+        "mean_score_global": mean_score_global,
+        "std_score_global": std_score_global,
+        "mean_final_score": mean_final_score_training,
+        "std_final_score": std_final_score_training,
         "mean_success_global": mean_success_global,
+        "std_success_global": std_success_global,
+        "mean_steps_global": mean_steps_global,
+        "std_steps_global": std_steps_global,
+
+        # Dados individuais brutos de cada sessão
+        "all_sessions_scores": all_scores,
+        "all_sessions_final_scores": final_window_scores,
+        "all_sessions_successes": all_successes,
+
+        # Métricas da melhor sessão
+        "best_session_steps": best_session_steps, 
+        "best_session_score": best_session_score, 
         "best_session_success": best_session_success
     }
 
